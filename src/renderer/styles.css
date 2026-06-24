@@ -158,7 +158,8 @@ button:disabled {
 }
 
 .capture-surface {
-  min-height: 100vh;
+  width: 100vw;
+  height: 100vh;
   cursor: crosshair;
   user-select: none;
   background: rgba(15, 23, 42, 0.32);
@@ -187,7 +188,8 @@ button:disabled {
 }
 
 .result-shell {
-  min-height: 100vh;
+  width: 100vw;
+  height: 100vh;
   overflow: hidden;
 }
 
@@ -224,22 +226,128 @@ button:disabled {
 
 .result-canvas {
   position: relative;
-  min-height: 100vh;
+  width: 100vw;
+  height: 100vh;
   background: transparent;
 }
 
-.result-canvas > img,
-.translated-layer > img {
-  width: 100%;
-  height: 100vh;
-  object-fit: cover;
+.fallback-warning {
+  position: fixed;
+  z-index: 19;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  max-height: 34vh;
+  overflow: auto;
+  padding: 10px 12px;
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  border-radius: 8px;
+  color: #78350f;
+  background: rgba(255, 251, 235, 0.94);
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.14);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.fallback-warning p {
+  margin: 0;
+}
+
+.fallback-warning p + p {
+  margin-top: 4px;
+}
+
+.original-capture,
+.captured-region > img {
+  object-fit: fill;
   display: block;
+}
+
+.original-capture {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+.translating-canvas {
+  overflow: hidden;
+}
+
+.translating-image {
+  filter: brightness(0.82) saturate(0.85);
+}
+
+.translating-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(15, 23, 42, 0.32);
+}
+
+.translating-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.28);
+}
+
+.translating-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.translating-title {
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.translating-elapsed {
+  color: #64748b;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.translating-cancel {
+  height: 30px;
+  padding: 0 12px;
+  color: #1e293b;
+  background: #eef2ff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.spinner {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 3px solid rgba(37, 99, 235, 0.22);
+  border-top-color: #2563eb;
+  animation: spinner-rotate 0.8s linear infinite;
+}
+
+@keyframes spinner-rotate {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .translated-layer {
   position: relative;
   width: 100%;
-  min-height: 100vh;
+  height: 100%;
+}
+
+.captured-region {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: hidden;
 }
 
 .translation-chip {

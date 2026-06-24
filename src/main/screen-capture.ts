@@ -1,8 +1,10 @@
 import { desktopCapturer, nativeImage, screen } from "electron";
 import type { CaptureSelection } from "../shared/types";
 
-export async function captureSelection(selection: CaptureSelection): Promise<string> {
-  const display = screen.getDisplayMatching(selection);
+export async function captureSelection(selection: CaptureSelection, displayId?: number): Promise<string> {
+  const display =
+    screen.getAllDisplays().find((candidate) => candidate.id === displayId) ??
+    screen.getDisplayMatching(selection);
   const scaleFactor = display.scaleFactor || 1;
   const thumbnailSize = {
     width: Math.round(display.bounds.width * scaleFactor),

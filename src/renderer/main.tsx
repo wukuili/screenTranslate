@@ -1,6 +1,15 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import type { AppSettings, CaptureResult, CaptureSelection, ResultPayload, ScreenTranslateApi } from "../shared/types";
+import type {
+  AppSettings,
+  CaptureResult,
+  CaptureSelection,
+  ResultPayload,
+  ResultState,
+  ScreenTranslateApi,
+  SettingsSnapshot,
+  TranslatingStage
+} from "../shared/types";
 import "./styles.css";
 
 const screenTranslate = window.screenTranslate ?? createBrowserMockApi();
@@ -10,6 +19,10 @@ function getView() {
 }
 
 function App() {
+  if (!window.screenTranslate) {
+    return <PreloadError />;
+  }
+
   const view = getView();
 
   if (view === "capture") {
@@ -23,14 +36,32 @@ function App() {
   return <SettingsView />;
 }
 
+function PreloadError() {
+  return (
+    <main className="settings-shell">
+      <section className="settings-section">
+        <h1>Preload failed</h1>
+        <p className="muted">
+          The desktop bridge did not load, so settings cannot be saved. Restart the app with npm run dev
+          after rebuilding.
+        </p>
+      </section>
+    </main>
+  );
+}
+
 function SettingsView() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [settingsSnapshot, setSettingsSnapshot] = useState<SettingsSnapshot | null>(null);
   const [apiKey, setApiKey] = useState("");
   const [status, setStatus] = useState("Ready");
   const [isBusy, setIsBusy] = useState(false);
 
   useEffect(() => {
-    screenTranslate.getSettings().then(setSettings);
+    screenTranslate.getSettings().then((snapshot) => {
+      setSettingsSnapshot(snapshot);
+      setSettings(snapshot.settings);
+    });
   }, []);
 
   if (!settings) {
@@ -50,6 +81,15 @@ function SettingsView() {
         apiKey.trim() ? apiKey : undefined
       );
       setSettings(saved);
+      setSettingsSnapshot((current) =>
+        current
+          ? {
+              ...current,
+              settings: saved,
+              hasApiKey: current.hasApiKey || Boolean(apiKey.trim())
+            }
+          : current
+      );
       setApiKey("");
       setStatus("Settings saved.");
     } finally {
@@ -106,7 +146,7 @@ function SettingsView() {
               value={apiKey}
               onChange={(event) => setApiKey(event.target.value)}
               type="password"
-              placeholder="Leave blank to keep current key"
+              placeholder={settingsSnapshot?.hasApiKey ? "Saved. Leave blank to keep current key" : "Enter API key"}
             />
           </Field>
           <Field label="Model">
@@ -177,6 +217,8 @@ function SettingsView() {
         <div className="settings-section status-section">
           <h2>Status</h2>
           <p>{status}</p>
+          {settingsSnapshot?.hasApiKey ? <p className="muted">API key is saved securely and hidden.</p> : null}
+          {settingsSnapshot ? <p className="muted">Settings file: {settingsSnapshot.storagePath}</p> : null}
           <p className="muted">Default shortcut: Ctrl + Alt + T. Use the tray menu if shortcut capture is paused.</p>
         </div>
       </section>
@@ -196,8 +238,11 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function CaptureView() {
   const [start, setStart] = useState<{ x: number; y: number } | null>(null);
   const [current, setCurrent] = useState<{ x: number; y: number } | null>(null);
+  const [captureBounds, setCaptureBounds] = useState<CaptureSelection | null>(null);
 
   useEffect(() => {
+    screenTranslate.getCaptureWindowBounds().then(setCaptureBounds);
+
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         screenTranslate.cancelCapture();
@@ -221,9 +266,15 @@ function CaptureView() {
       return;
     }
 
+    const bounds = captureBounds ?? {
+      x: window.screenX,
+      y: window.screenY,
+      width: window.innerWidth,
+      height: window.innerHeight
+    };
     const absolute = {
-      x: window.screenX + selection.x,
-      y: window.screenY + selection.y,
+      x: Math.round(bounds.x + selection.x),
+      y: Math.round(bounds.y + selection.y),
       width: selection.width,
       height: selection.height
     };
@@ -265,35 +316,115 @@ function CaptureView() {
 }
 
 function ResultView() {
-  const [payload, setPayload] = useState<ResultPayload | null>(null);
+  const [state, setState] = useState<ResultState | null>(null);
   const [mode, setMode] = useState<"overlay" | "original" | "text">("overlay");
 
   useEffect(() => {
-    screenTranslate.getResultPayload().then(setPayload);
+    screenTranslate.getResultState().then(setState);
+    const unsubscribe = screenTranslate.onResultState(setState);
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        screenTranslate.closeResultWindow();
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      unsubscribe();
+    };
   }, []);
 
-  if (!payload) {
+  if (!state) {
     return <div className="result-empty">Preparing translation...</div>;
   }
 
+  if (state.status === "translating") {
+    return <TranslatingView capture={state.capture} stage={state.stage} />;
+  }
+
+  const payload = state.payload;
   const allText = payload.translation.blocks.map((block) => block.translatedText).join("\n");
+  const fallbackReasons = [payload.captureFallbackReason, payload.translationFallbackReason].filter(Boolean);
 
   return (
     <main className="result-shell">
       <div className="result-toolbar">
-        <span className="result-title">{payload.usedFallback ? "Mock fallback" : "Translated"}</span>
+        <span className="result-title">{payload.usedFallback ? "Fallback used" : "Translated"}</span>
         <button onClick={() => setMode("overlay")}>Overlay</button>
         <button onClick={() => setMode("original")}>Original</button>
         <button onClick={() => setMode("text")}>Text</button>
         <button onClick={() => screenTranslate.copyText(allText)}>Copy</button>
         <button onClick={() => screenTranslate.retryLastCapture()}>Retry</button>
-        <button onClick={() => screenTranslate.closeCurrentWindow()}>Close</button>
+        <button onClick={() => screenTranslate.closeResultWindow()}>Close</button>
       </div>
 
       <section className="result-canvas">
-        {mode === "original" ? <img src={payload.capture.imageDataUrl} alt="Captured region" /> : null}
+        {fallbackReasons.length ? (
+          <div className="fallback-warning">
+            {fallbackReasons.map((reason) => (
+              <p key={reason}>{reason}</p>
+            ))}
+          </div>
+        ) : null}
+        {mode === "original" ? (
+          <img
+            className="original-capture"
+            src={payload.capture.imageDataUrl}
+            alt="Captured region"
+            style={{
+              width: payload.capture.selection.width,
+              height: payload.capture.selection.height
+            }}
+          />
+        ) : null}
         {mode === "overlay" ? <TranslatedOverlay payload={payload} /> : null}
         {mode === "text" ? <TextPanel payload={payload} /> : null}
+      </section>
+    </main>
+  );
+}
+
+function TranslatingView({ capture, stage }: { capture: CaptureResult; stage: TranslatingStage }) {
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    const started = Date.now();
+    const timer = window.setInterval(() => {
+      setElapsed((Date.now() - started) / 1000);
+    }, 100);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const title = stage === "ocr" ? "Recognizing text…" : "Translating…";
+
+  return (
+    <main className="result-shell">
+      <section className="result-canvas translating-canvas">
+        {capture.imageDataUrl ? (
+          <img
+            className="original-capture translating-image"
+            src={capture.imageDataUrl}
+            alt="Captured region"
+            style={{
+              width: capture.selection.width,
+              height: capture.selection.height
+            }}
+          />
+        ) : null}
+        <div className="translating-overlay">
+          <div className="translating-card">
+            <span className="spinner" aria-hidden="true" />
+            <div className="translating-text">
+              <span className="translating-title">{title}</span>
+              <span className="translating-elapsed">{elapsed.toFixed(1)}s</span>
+            </div>
+            <button className="translating-cancel" onClick={() => screenTranslate.closeResultWindow()}>
+              Cancel
+            </button>
+          </div>
+        </div>
       </section>
     </main>
   );
@@ -302,7 +433,15 @@ function ResultView() {
 function TranslatedOverlay({ payload }: { payload: ResultPayload }) {
   return (
     <div className="translated-layer">
-      <img src={payload.capture.imageDataUrl} alt="" />
+      <div
+        className="captured-region"
+        style={{
+          width: payload.capture.selection.width,
+          height: payload.capture.selection.height
+        }}
+      >
+        <img src={payload.capture.imageDataUrl} alt="" />
+      </div>
       {payload.translation.blocks.map((block, index) => {
         const opacity = block.backgroundHint?.opacity ?? 0.9;
         const background = block.backgroundHint?.color ?? "#ffffff";
@@ -431,9 +570,19 @@ function createBrowserMockApi(): ScreenTranslateApi {
   });
 
   return {
-    getSettings: async () => settings,
+    getSettings: async () => ({
+      settings,
+      hasApiKey: false,
+      storagePath: "Browser preview mock"
+    }),
     saveSettings: async (next) => Object.assign(settings, next),
     testConnection: async () => ({ ok: true, message: "Browser mock connection succeeded." }),
+    getCaptureWindowBounds: async () => ({
+      x: window.screenX,
+      y: window.screenY,
+      width: window.innerWidth,
+      height: window.innerHeight
+    }),
     completeCapture: async (capture) => {
       latestCapture = capture;
       window.location.search = "?view=result";
@@ -442,9 +591,27 @@ function createBrowserMockApi(): ScreenTranslateApi {
       window.location.search = "?view=settings";
     },
     getResultPayload: async () => latestResult(),
+    getResultState: async () => ({ status: "translating", capture: latestCapture, stage: "ocr" }),
+    onResultState: (callback) => {
+      const toTranslating = window.setTimeout(
+        () => callback({ status: "translating", capture: latestCapture, stage: "translating" }),
+        700
+      );
+      const toDone = window.setTimeout(
+        () => callback({ status: "done", capture: latestCapture, payload: latestResult() }),
+        1800
+      );
+      return () => {
+        window.clearTimeout(toTranslating);
+        window.clearTimeout(toDone);
+      };
+    },
     clearHistory: async () => undefined,
     copyText: async (text) => navigator.clipboard?.writeText(text),
     closeCurrentWindow: async () => {
+      window.location.search = "?view=settings";
+    },
+    closeResultWindow: async () => {
       window.location.search = "?view=settings";
     },
     retryLastCapture: async () => undefined

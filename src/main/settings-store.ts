@@ -11,6 +11,10 @@ interface StoredSettings {
 
 const configPath = () => join(app.getPath("userData"), "settings.json");
 
+export function getSettingsStoragePath(): string {
+  return configPath();
+}
+
 async function readStoredSettings(): Promise<StoredSettings> {
   try {
     const content = await readFile(configPath(), "utf8");
@@ -27,6 +31,11 @@ async function readStoredSettings(): Promise<StoredSettings> {
 export async function getSettings(): Promise<AppSettings> {
   const stored = await readStoredSettings();
   return stored.settings;
+}
+
+export async function hasApiKey(): Promise<boolean> {
+  const stored = await readStoredSettings();
+  return Boolean(stored.encryptedApiKey);
 }
 
 export async function getApiKey(): Promise<string> {

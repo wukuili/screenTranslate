@@ -6,12 +6,18 @@ const colorSchema = z.string().regex(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i).optional()
 const blockSchema = z.object({
   sourceText: z.string().min(1),
   translatedText: z.string().min(1),
-  bbox: z.object({
-    x: z.number().finite(),
-    y: z.number().finite(),
-    width: z.number().positive(),
-    height: z.number().positive()
-  }),
+  bbox: z.preprocess(
+    (value) =>
+      Array.isArray(value) && value.length >= 4
+        ? { x: value[0], y: value[1], width: value[2], height: value[3] }
+        : value,
+    z.object({
+      x: z.number().finite(),
+      y: z.number().finite(),
+      width: z.number().positive(),
+      height: z.number().positive()
+    })
+  ),
   fontHint: z
     .object({
       size: z.number().positive().optional(),

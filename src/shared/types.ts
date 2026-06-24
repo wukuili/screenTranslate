@@ -51,21 +51,39 @@ export interface ApiTestResult {
   message: string;
 }
 
+export interface SettingsSnapshot {
+  settings: AppSettings;
+  hasApiKey: boolean;
+  storagePath: string;
+}
+
 export interface ResultPayload {
   capture: CaptureResult;
   translation: TranslationResult;
   usedFallback: boolean;
+  captureFallbackReason?: string;
+  translationFallbackReason?: string;
 }
 
+export type TranslatingStage = "ocr" | "translating";
+
+export type ResultState =
+  | { status: "translating"; capture: CaptureResult; stage: TranslatingStage }
+  | { status: "done"; capture: CaptureResult; payload: ResultPayload };
+
 export interface ScreenTranslateApi {
-  getSettings: () => Promise<AppSettings>;
+  getSettings: () => Promise<SettingsSnapshot>;
   saveSettings: (settings: AppSettings, apiKey?: string) => Promise<AppSettings>;
   testConnection: (settings: AppSettings, apiKey?: string) => Promise<ApiTestResult>;
+  getCaptureWindowBounds: () => Promise<CaptureSelection>;
   completeCapture: (capture: CaptureResult) => Promise<void>;
   cancelCapture: () => Promise<void>;
   getResultPayload: () => Promise<ResultPayload | null>;
+  getResultState: () => Promise<ResultState | null>;
+  onResultState: (callback: (state: ResultState) => void) => () => void;
   clearHistory: () => Promise<void>;
   copyText: (text: string) => Promise<void>;
   closeCurrentWindow: () => Promise<void>;
+  closeResultWindow: () => Promise<void>;
   retryLastCapture: () => Promise<void>;
 }
