@@ -18,6 +18,10 @@ export async function translateScreenshot(
     throw new Error("API Key is required.");
   }
 
+  if (!capture.imageDataUrl.trim()) {
+    throw new Error("Screenshot image is required.");
+  }
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), settings.requestTimeoutMs);
 

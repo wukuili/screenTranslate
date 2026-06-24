@@ -68,6 +68,17 @@ function SettingsView() {
     }
   };
 
+  const clearHistory = async () => {
+    setIsBusy(true);
+    setStatus("Clearing history...");
+    try {
+      await screenTranslate.clearHistory();
+      setStatus("History cleared.");
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
   return (
     <main className="settings-shell">
       <section className="settings-hero">
@@ -158,6 +169,9 @@ function SettingsView() {
               onChange={(event) => update("maxHistoryItems", Number(event.target.value))}
             />
           </Field>
+          <button className="secondary-button" disabled={isBusy || !settings.saveHistory} onClick={clearHistory}>
+            Clear history
+          </button>
         </div>
 
         <div className="settings-section status-section">
@@ -215,7 +229,7 @@ function CaptureView() {
     };
 
     await screenTranslate.completeCapture({
-      imageDataUrl: createMockScreenshot(selection.width, selection.height),
+      imageDataUrl: "",
       selection: absolute
     });
   };
@@ -428,6 +442,7 @@ function createBrowserMockApi(): ScreenTranslateApi {
       window.location.search = "?view=settings";
     },
     getResultPayload: async () => latestResult(),
+    clearHistory: async () => undefined,
     copyText: async (text) => navigator.clipboard?.writeText(text),
     closeCurrentWindow: async () => {
       window.location.search = "?view=settings";

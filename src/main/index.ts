@@ -1,9 +1,12 @@
 import { app, BrowserWindow, clipboard, globalShortcut, ipcMain, nativeImage, screen, Tray, Menu } from "electron";
 import { join } from "node:path";
 import type { AppSettings, CaptureResult, ResultPayload } from "../shared/types";
-import { mockTranslation } from "./defaults";
+import { createMockCaptureImageDataUrl, mockTranslation } from "./defaults";
 import { getApiKey, getSettings, saveSettings } from "./settings-store";
 import { testOpenAiCompatibleEndpoint, translateScreenshot } from "./openai-compatible";
+import { captureSelection } from "./screen-capture";
+import { normalizeTranslationForCapture } from "./translation-normalizer";
+import { clearHistory, saveHistoryEntry } from "./history-store";
 
 let tray: Tray | null = null;
 let settingsWindow: BrowserWindow | null = null;
@@ -120,7 +123,10 @@ async function translateCapture(capture: CaptureResult): Promise<ResultPayload> 
   const apiKey = await getApiKey();
 
   try {
-    const translation = await translateScreenshot(settings, apiKey, capture);
+    const translation = normalizeTranslationForCapture(
+      await translateScreenshot(settings, apiKey, capture),
+      capture
+    );
     return { capture, translation, usedFallback: false };
   } catch {
     return {
@@ -199,9 +205,30 @@ function registerIpc(): void {
   });
 
   ipcMain.handle("capture:complete", async (_event, capture: CaptureResult) => {
-    lastCapture = capture;
     captureWindow?.close();
-    latestResult = await translateCapture(capture);
+    await new Promise((resolve) => setTimeout(resolve, 120));
+
+    let imageDataUrl = capture.imageDataUrl;
+    if (!imageDataUrl) {
+      try {
+        imageDataUrl = await captureSelection(capture.selection);
+      } catch {
+        imageDataUrl = "";
+      }
+    }
+    const completedCapture = {
+      ...capture,
+      imageDataUrl:
+        imageDataUrl || createMockCaptureImageDataUrl(capture.selection.width, capture.selection.height)
+    };
+
+    lastCapture = completedCapture;
+    latestResult = await translateCapture(completedCapture);
+    const settings = await getSettings();
+    if (settings.autoCopy) {
+      clipboard.writeText(latestResult.translation.blocks.map((block) => block.translatedText).join("\n"));
+    }
+    await saveHistoryEntry(latestResult, settings);
     createResultWindow(latestResult);
   });
 
@@ -210,6 +237,8 @@ function registerIpc(): void {
   });
 
   ipcMain.handle("result:getPayload", () => latestResult);
+
+  ipcMain.handle("history:clear", clearHistory);
 
   ipcMain.handle("clipboard:copyText", (_event, text: string) => {
     clipboard.writeText(text);

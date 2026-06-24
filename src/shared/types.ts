@@ -64,6 +64,7 @@ export interface ScreenTranslateApi {
   completeCapture: (capture: CaptureResult) => Promise<void>;
   cancelCapture: () => Promise<void>;
   getResultPayload: () => Promise<ResultPayload | null>;
+  clearHistory: () => Promise<void>;
   copyText: (text: string) => Promise<void>;
   closeCurrentWindow: () => Promise<void>;
   retryLastCapture: () => Promise<void>;

@@ -33,3 +33,19 @@ export const mockTranslation: TranslationResult = {
     }
   ]
 };
+
+export function createMockCaptureImageDataUrl(width = 720, height = 420): string {
+  const safeWidth = Math.max(420, Math.round(width));
+  const safeHeight = Math.max(260, Math.round(height));
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="${safeWidth}" height="${safeHeight}">
+      <rect width="100%" height="100%" fill="#f8fafc"/>
+      <rect x="28" y="24" width="${safeWidth - 56}" height="${safeHeight - 48}" rx="18" fill="#ffffff" stroke="#dbe3ef"/>
+      <text x="64" y="84" font-family="Arial" font-size="26" font-weight="700" fill="#111827">Translate text on screen</text>
+      <text x="64" y="152" font-family="Arial" font-size="21" fill="#1f2937">OpenAI-compatible model</text>
+      <text x="64" y="${safeHeight - 56}" font-family="Arial" font-size="15" fill="#64748b">Fallback capture used because native screenshot failed or API is not configured.</text>
+    </svg>
+  `;
+
+  return `data:image/svg+xml;base64,${Buffer.from(svg, "utf8").toString("base64")}`;
+}

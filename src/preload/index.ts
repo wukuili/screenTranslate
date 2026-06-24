@@ -10,6 +10,7 @@ const api: ScreenTranslateApi = {
   completeCapture: (capture: CaptureResult) => ipcRenderer.invoke("capture:complete", capture),
   cancelCapture: () => ipcRenderer.invoke("capture:cancel"),
   getResultPayload: () => ipcRenderer.invoke("result:getPayload"),
+  clearHistory: () => ipcRenderer.invoke("history:clear"),
   copyText: (text: string) => ipcRenderer.invoke("clipboard:copyText", text),
   closeCurrentWindow: () => ipcRenderer.invoke("window:closeCurrent"),
   retryLastCapture: () => ipcRenderer.invoke("result:retryLastCapture")
