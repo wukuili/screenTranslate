@@ -1,8 +1,11 @@
 .superpowers/
+.codegraph/
+.playwright-mcp/
 node_modules/
 dist/
 out/
 release/
+tmp/
 .env
 .env.*
 *.log

@@ -1,0 +1,70 @@
+export type ViewMode = "settings" | "capture" | "result";
+
+export interface AppSettings {
+  baseUrl: string;
+  model: string;
+  targetLanguage: string;
+  shortcut: string;
+  requestTimeoutMs: number;
+  saveHistory: boolean;
+  maxHistoryItems: number;
+  autoCopy: boolean;
+}
+
+export interface CaptureSelection {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface CaptureResult {
+  imageDataUrl: string;
+  selection: CaptureSelection;
+  displayId?: number;
+}
+
+export interface TranslationBlock {
+  sourceText: string;
+  translatedText: string;
+  bbox: CaptureSelection;
+  fontHint?: {
+    size?: number;
+    weight?: "normal" | "medium" | "bold";
+    color?: string;
+  };
+  backgroundHint?: {
+    color?: string;
+    opacity?: number;
+  };
+  confidence: number;
+}
+
+export interface TranslationResult {
+  sourceLanguage: string;
+  targetLanguage: string;
+  blocks: TranslationBlock[];
+}
+
+export interface ApiTestResult {
+  ok: boolean;
+  message: string;
+}
+
+export interface ResultPayload {
+  capture: CaptureResult;
+  translation: TranslationResult;
+  usedFallback: boolean;
+}
+
+export interface ScreenTranslateApi {
+  getSettings: () => Promise<AppSettings>;
+  saveSettings: (settings: AppSettings, apiKey?: string) => Promise<AppSettings>;
+  testConnection: (settings: AppSettings, apiKey?: string) => Promise<ApiTestResult>;
+  completeCapture: (capture: CaptureResult) => Promise<void>;
+  cancelCapture: () => Promise<void>;
+  getResultPayload: () => Promise<ResultPayload | null>;
+  copyText: (text: string) => Promise<void>;
+  closeCurrentWindow: () => Promise<void>;
+  retryLastCapture: () => Promise<void>;
+}

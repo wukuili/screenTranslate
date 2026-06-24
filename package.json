@@ -1,0 +1,31 @@
+{
+  "name": "screen-translate",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Windows-first screenshot translation desktop client.",
+  "main": "out/main/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "npm run typecheck && electron-vite build",
+    "preview": "electron-vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^5.1.1",
+    "electron-vite": "^4.0.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "vite": "^7.3.0",
+    "zod": "^4.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.2",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "electron": "^39.2.7",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.15"
+  }
+}
