@@ -49,7 +49,14 @@ jobs:
         run: npm ci
 
       - name: Set package version
-        run: npm version $env:PACKAGE_VERSION --no-git-tag-version
+        shell: pwsh
+        run: |
+          $currentVersion = node -p "require('./package.json').version"
+          if ($currentVersion -eq $env:PACKAGE_VERSION) {
+            Write-Host "package.json is already at version $env:PACKAGE_VERSION; skipping npm version."
+          } else {
+            npm version $env:PACKAGE_VERSION --no-git-tag-version
+          }
 
       - name: Typecheck
         run: npm run typecheck
