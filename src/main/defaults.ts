@@ -1,8 +1,10 @@
 import type { AppSettings, TranslationResult } from "../shared/types";
 
 export const defaultSettings: AppSettings = {
+  translationProvider: "openai",
   baseUrl: "https://api.openai.com/v1",
   model: "gpt-4.1-mini",
+  baiduAppId: "",
   targetLanguage: "中文",
   shortcut: "Ctrl+Alt+T",
   requestTimeoutMs: 60000,

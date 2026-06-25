@@ -54,6 +54,7 @@ function SettingsView() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [settingsSnapshot, setSettingsSnapshot] = useState<SettingsSnapshot | null>(null);
   const [apiKey, setApiKey] = useState("");
+  const [baiduSecretKey, setBaiduSecretKey] = useState("");
   const [status, setStatus] = useState("Ready");
   const [isBusy, setIsBusy] = useState(false);
 
@@ -78,7 +79,8 @@ function SettingsView() {
     try {
       const saved = await screenTranslate.saveSettings(
         settings,
-        apiKey.trim() ? apiKey : undefined
+        apiKey.trim() ? apiKey : undefined,
+        baiduSecretKey.trim() ? baiduSecretKey : undefined
       );
       setSettings(saved);
       setSettingsSnapshot((current) =>
@@ -86,22 +88,28 @@ function SettingsView() {
           ? {
               ...current,
               settings: saved,
-              hasApiKey: current.hasApiKey || Boolean(apiKey.trim())
+              hasApiKey: current.hasApiKey || Boolean(apiKey.trim()),
+              hasBaiduSecretKey: current.hasBaiduSecretKey || Boolean(baiduSecretKey.trim())
             }
           : current
       );
       setApiKey("");
+      setBaiduSecretKey("");
       setStatus("Settings saved.");
     } finally {
       setIsBusy(false);
     }
   };
 
-  const testConnection = async () => {
+  const testConnection = async (translationProvider = settings.translationProvider) => {
     setIsBusy(true);
     setStatus("Testing connection...");
     try {
-      const result = await screenTranslate.testConnection(settings, apiKey || undefined);
+      const result = await screenTranslate.testConnection(
+        { ...settings, translationProvider },
+        apiKey || undefined,
+        baiduSecretKey || undefined
+      );
       setStatus(result.message);
     } finally {
       setIsBusy(false);
@@ -133,7 +141,20 @@ function SettingsView() {
 
       <section className="settings-grid">
         <div className="settings-section">
-          <h2>Model</h2>
+          <h2>Translation Engine</h2>
+          <Field label="Engine">
+            <select
+              value={settings.translationProvider}
+              onChange={(event) => update("translationProvider", event.target.value as AppSettings["translationProvider"])}
+            >
+              <option value="openai">Large model</option>
+              <option value="baidu">Baidu Translate</option>
+            </select>
+          </Field>
+        </div>
+
+        <div className="settings-section">
+          <h2>Large Model</h2>
           <Field label="Base URL">
             <input
               value={settings.baseUrl}
@@ -152,8 +173,32 @@ function SettingsView() {
           <Field label="Model">
             <input value={settings.model} onChange={(event) => update("model", event.target.value)} />
           </Field>
-          <button className="secondary-button" disabled={isBusy} onClick={testConnection}>
+          <button className="secondary-button" disabled={isBusy} onClick={() => testConnection("openai")}>
             Test connection
+          </button>
+        </div>
+
+        <div className="settings-section">
+          <h2>Baidu Translate</h2>
+          <Field label="App ID">
+            <input
+              value={settings.baiduAppId}
+              onChange={(event) => update("baiduAppId", event.target.value)}
+              placeholder="Baidu Translate App ID"
+            />
+          </Field>
+          <Field label="Secret Key">
+            <input
+              value={baiduSecretKey}
+              onChange={(event) => setBaiduSecretKey(event.target.value)}
+              type="password"
+              placeholder={
+                settingsSnapshot?.hasBaiduSecretKey ? "Saved. Leave blank to keep current key" : "Enter Secret Key"
+              }
+            />
+          </Field>
+          <button className="secondary-button" disabled={isBusy} onClick={() => testConnection("baidu")}>
+            Test Baidu
           </button>
         </div>
 
@@ -189,8 +234,8 @@ function SettingsView() {
         <div className="settings-section">
           <h2>Privacy</h2>
           <p className="muted">
-            Screenshots are sent to the model service you configure. History is off by default and stored
-            locally only when enabled.
+            Screenshots are processed with local Windows OCR. Recognized text is sent to the selected
+            translation service. History is off by default and stored locally only when enabled.
           </p>
           <label className="switch-row">
             <input
@@ -218,6 +263,9 @@ function SettingsView() {
           <h2>Status</h2>
           <p>{status}</p>
           {settingsSnapshot?.hasApiKey ? <p className="muted">API key is saved securely and hidden.</p> : null}
+          {settingsSnapshot?.hasBaiduSecretKey ? (
+            <p className="muted">Baidu Secret Key is saved securely and hidden.</p>
+          ) : null}
           {settingsSnapshot ? <p className="muted">Settings file: {settingsSnapshot.storagePath}</p> : null}
           <p className="muted">Default shortcut: Ctrl + Alt + T. Use the tray menu if shortcut capture is paused.</p>
         </div>
@@ -527,8 +575,10 @@ function rgba(hex: string, opacity: number): string {
 
 function createBrowserMockApi(): ScreenTranslateApi {
   const settings: AppSettings = {
+    translationProvider: "openai",
     baseUrl: "https://api.openai.com/v1",
     model: "gpt-4.1-mini",
+    baiduAppId: "",
     targetLanguage: "中文",
     shortcut: "Ctrl+Alt+T",
     requestTimeoutMs: 60000,
@@ -573,6 +623,7 @@ function createBrowserMockApi(): ScreenTranslateApi {
     getSettings: async () => ({
       settings,
       hasApiKey: false,
+      hasBaiduSecretKey: false,
       storagePath: "Browser preview mock"
     }),
     saveSettings: async (next) => Object.assign(settings, next),

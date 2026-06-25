@@ -1,8 +1,11 @@
 export type ViewMode = "settings" | "capture" | "result";
+export type TranslationProvider = "openai" | "baidu";
 
 export interface AppSettings {
+  translationProvider: TranslationProvider;
   baseUrl: string;
   model: string;
+  baiduAppId: string;
   targetLanguage: string;
   shortcut: string;
   requestTimeoutMs: number;
@@ -54,6 +57,7 @@ export interface ApiTestResult {
 export interface SettingsSnapshot {
   settings: AppSettings;
   hasApiKey: boolean;
+  hasBaiduSecretKey: boolean;
   storagePath: string;
 }
 
@@ -73,8 +77,8 @@ export type ResultState =
 
 export interface ScreenTranslateApi {
   getSettings: () => Promise<SettingsSnapshot>;
-  saveSettings: (settings: AppSettings, apiKey?: string) => Promise<AppSettings>;
-  testConnection: (settings: AppSettings, apiKey?: string) => Promise<ApiTestResult>;
+  saveSettings: (settings: AppSettings, apiKey?: string, baiduSecretKey?: string) => Promise<AppSettings>;
+  testConnection: (settings: AppSettings, apiKey?: string, baiduSecretKey?: string) => Promise<ApiTestResult>;
   getCaptureWindowBounds: () => Promise<CaptureSelection>;
   completeCapture: (capture: CaptureResult) => Promise<void>;
   cancelCapture: () => Promise<void>;

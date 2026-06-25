@@ -23,8 +23,17 @@ import type {
   TranslationResult
 } from "../shared/types";
 import { createMockCaptureImageDataUrl, mockTranslation } from "./defaults";
-import { getApiKey, getSettings, getSettingsStoragePath, hasApiKey, saveSettings } from "./settings-store";
+import {
+  getApiKey,
+  getBaiduSecretKey,
+  getSettings,
+  getSettingsStoragePath,
+  hasApiKey,
+  hasBaiduSecretKey,
+  saveSettings
+} from "./settings-store";
 import { testOpenAiCompatibleEndpoint, translateGroupedLines, translateTexts } from "./openai-compatible";
+import { testBaiduTranslateEndpoint, translateTextsWithBaidu } from "./baidu-translate";
 import { recognizeText, type OcrLine } from "./ocr";
 import { captureSelection } from "./screen-capture";
 import { normalizeTranslationForCapture } from "./translation-normalizer";
@@ -32,7 +41,7 @@ import { clearHistory, saveHistoryEntry } from "./history-store";
 
 let tray: Tray | null = null;
 let settingsWindow: BrowserWindow | null = null;
-let captureWindow: BrowserWindow | null = null;
+let captureWindows: BrowserWindow[] = [];
 let resultWindow: BrowserWindow | null = null;
 let lastCapture: CaptureResult | null = null;
 let latestResult: ResultPayload | null = null;
@@ -41,15 +50,39 @@ let shortcutPaused = false;
 const RESULT_TOOLBAR_WIDTH = 460;
 const RESULT_TOOLBAR_HEIGHT = 56;
 const APP_NAME = "Screen Translate";
+const LOOPBACK_PROXY_BYPASS = "<-loopback>;localhost;127.0.0.1;[::1]";
+const FAST_TRANSLATE_LINE_LIMIT = 4;
 
 app.setName(APP_NAME);
 app.setPath("userData", join(app.getPath("appData"), APP_NAME));
+app.commandLine.appendSwitch("no-proxy-server");
+app.commandLine.appendSwitch("proxy-bypass-list", LOOPBACK_PROXY_BYPASS);
+
+function logTiming(stage: string, startedAt: number, detail?: string): void {
+  const suffix = detail ? ` (${detail})` : "";
+  console.info(`[Screen Translate timing] ${stage}: ${Date.now() - startedAt}ms${suffix}`);
+}
+
+function getRendererDevUrl(view: string): string {
+  const rendererUrl = process.env.ELECTRON_RENDERER_URL;
+  if (!rendererUrl) {
+    throw new Error("ELECTRON_RENDERER_URL is not set.");
+  }
+
+  const url = new URL(rendererUrl);
+  if (url.hostname === "localhost") {
+    url.hostname = "127.0.0.1";
+  }
+  url.searchParams.set("view", view);
+
+  return url.toString();
+}
 
 function loadRenderer(window: BrowserWindow, view: string): void {
   const query = { view };
 
   if (process.env.ELECTRON_RENDERER_URL) {
-    window.loadURL(`${process.env.ELECTRON_RENDERER_URL}?view=${view}`);
+    window.loadURL(getRendererDevUrl(view));
   } else {
     window.loadFile(join(__dirname, "../renderer/index.html"), { query });
   }
@@ -107,36 +140,49 @@ function createSettingsWindow(): void {
   loadRenderer(settingsWindow, "settings");
 }
 
+function closeCaptureWindows(): void {
+  for (const window of captureWindows) {
+    if (!window.isDestroyed()) {
+      window.close();
+    }
+  }
+  captureWindows = [];
+}
+
 function createCaptureWindow(): void {
-  if (captureWindow && !captureWindow.isDestroyed()) {
-    captureWindow.focus();
+  const activeCaptureWindows = captureWindows.filter((window) => !window.isDestroyed());
+  if (activeCaptureWindows.length > 0) {
+    activeCaptureWindows[0].focus();
     return;
   }
+  captureWindows = [];
 
-  const bounds = getVirtualScreenBounds();
-  captureWindow = new BrowserWindow({
-    ...bounds,
-    frame: false,
-    transparent: true,
-    alwaysOnTop: true,
-    fullscreenable: false,
-    skipTaskbar: true,
-    resizable: false,
-    movable: false,
-    title: "Screen Translate Capture",
-    webPreferences: {
-      preload: getPreloadPath(),
-      contextIsolation: true,
-      nodeIntegration: false
-    }
-  });
+  for (const display of screen.getAllDisplays()) {
+    const captureWindow = new BrowserWindow({
+      ...display.bounds,
+      frame: false,
+      transparent: true,
+      alwaysOnTop: true,
+      fullscreenable: false,
+      skipTaskbar: true,
+      resizable: false,
+      movable: false,
+      title: "Screen Translate Capture",
+      webPreferences: {
+        preload: getPreloadPath(),
+        contextIsolation: true,
+        nodeIntegration: false
+      }
+    });
 
-  captureWindow.setAlwaysOnTop(true, "screen-saver");
-  captureWindow.on("closed", () => {
-    captureWindow = null;
-  });
+    captureWindow.setAlwaysOnTop(true, "screen-saver");
+    captureWindow.on("closed", () => {
+      captureWindows = captureWindows.filter((window) => window !== captureWindow);
+    });
 
-  loadRenderer(captureWindow, "capture");
+    captureWindows.push(captureWindow);
+    loadRenderer(captureWindow, "capture");
+  }
 }
 
 function setResultState(state: ResultState): void {
@@ -186,16 +232,31 @@ async function translateCapture(
 ): Promise<ResultPayload> {
   const settings = await getSettings();
   const apiKey = await getApiKey();
+  const baiduSecretKey = await getBaiduSecretKey();
+  const startedAt = Date.now();
+  let activeStage: TranslatingStage = "ocr";
 
   try {
     onStage?.("ocr");
+    const ocrStartedAt = Date.now();
     const lines = await recognizeText(capture.imageDataUrl);
+    logTiming("ocr", ocrStartedAt, `${lines.length} line${lines.length === 1 ? "" : "s"}`);
     if (lines.length === 0) {
       throw new Error("No text was detected in the selected area.");
     }
 
+    activeStage = "translating";
     onStage?.("translating");
-    const blocks = await buildTranslatedBlocks(settings, apiKey, lines);
+    const modelStartedAt = Date.now();
+    const blocks =
+      settings.translationProvider === "baidu"
+        ? await buildBaiduTranslatedBlocks(settings, baiduSecretKey, lines)
+        : await buildTranslatedBlocks(settings, apiKey, lines);
+    logTiming(
+      settings.translationProvider === "baidu" ? "baidu" : "model",
+      modelStartedAt,
+      `${blocks.length} block${blocks.length === 1 ? "" : "s"}`
+    );
 
     const translation = normalizeTranslationForCapture(
       {
@@ -208,6 +269,7 @@ async function translateCapture(
     return { capture, translation, usedFallback: Boolean(captureFallbackReason), captureFallbackReason };
   } catch (error) {
     const translationFallbackReason = error instanceof Error ? error.message : "Translation failed.";
+    logTiming(`translation failed during ${activeStage}`, startedAt, translationFallbackReason);
     console.error("Translation failed; using fallback result.", error);
     return {
       capture,
@@ -219,6 +281,25 @@ async function translateCapture(
   }
 }
 
+async function buildBaiduTranslatedBlocks(
+  settings: AppSettings,
+  secretKey: string,
+  lines: OcrLine[]
+): Promise<TranslationBlock[]> {
+  const translated = await translateTextsWithBaidu(
+    settings,
+    secretKey,
+    lines.map((line) => line.text)
+  );
+
+  return lines.map((line, index) => ({
+    sourceText: line.text,
+    translatedText: translated[index] ?? line.text,
+    bbox: line.bbox,
+    confidence: 1
+  }));
+}
+
 // Groups OCR lines into sentences/paragraphs via the model, then renders each merged group
 // as one block positioned over the union of its source lines' bounding boxes.
 async function buildTranslatedBlocks(
@@ -226,6 +307,21 @@ async function buildTranslatedBlocks(
   apiKey: string,
   lines: OcrLine[]
 ): Promise<TranslationBlock[]> {
+  if (lines.length <= FAST_TRANSLATE_LINE_LIMIT) {
+    const translated = await translateTexts(
+      settings,
+      apiKey,
+      lines.map((line) => line.text)
+    );
+
+    return lines.map((line, index) => ({
+      sourceText: line.text,
+      translatedText: translated[index] ?? line.text,
+      bbox: line.bbox,
+      confidence: 1
+    }));
+  }
+
   const segments = await translateGroupedLines(
     settings,
     apiKey,
@@ -364,28 +460,43 @@ function registerIpc(): void {
   ipcMain.handle("settings:get", async () => ({
     settings: await getSettings(),
     hasApiKey: await hasApiKey(),
+    hasBaiduSecretKey: await hasBaiduSecretKey(),
     storagePath: getSettingsStoragePath()
   }));
 
-  ipcMain.handle("settings:save", async (_event, settings: AppSettings, apiKey?: string) => {
-    const saved = await saveSettings(settings, apiKey);
-    await registerShortcut();
-    return saved;
-  });
-
-  ipcMain.handle("settings:testConnection", async (_event, settings: AppSettings, apiKey?: string) => {
-    try {
-      await testOpenAiCompatibleEndpoint(settings, apiKey ?? (await getApiKey()));
-      return { ok: true, message: "Connection succeeded." };
-    } catch (error) {
-      return { ok: false, message: error instanceof Error ? error.message : "Connection failed." };
+  ipcMain.handle(
+    "settings:save",
+    async (_event, settings: AppSettings, apiKey?: string, baiduSecretKey?: string) => {
+      const saved = await saveSettings(settings, apiKey, baiduSecretKey);
+      await registerShortcut();
+      return saved;
     }
-  });
+  );
 
-  ipcMain.handle("capture:getWindowBounds", () => captureWindow?.getBounds() ?? getVirtualScreenBounds());
+  ipcMain.handle(
+    "settings:testConnection",
+    async (_event, settings: AppSettings, apiKey?: string, baiduSecretKey?: string) => {
+      try {
+        if (settings.translationProvider === "baidu") {
+          await testBaiduTranslateEndpoint(settings, baiduSecretKey ?? (await getBaiduSecretKey()));
+          return { ok: true, message: "Baidu Translate connection succeeded." };
+        }
+
+        await testOpenAiCompatibleEndpoint(settings, apiKey ?? (await getApiKey()));
+        return { ok: true, message: "Connection succeeded." };
+      } catch (error) {
+        return { ok: false, message: error instanceof Error ? error.message : "Connection failed." };
+      }
+    }
+  );
+
+  ipcMain.handle("capture:getWindowBounds", (event) => {
+    return BrowserWindow.fromWebContents(event.sender)?.getBounds() ?? getVirtualScreenBounds();
+  });
 
   ipcMain.handle("capture:complete", async (_event, capture: CaptureResult) => {
-    captureWindow?.close();
+    const totalStartedAt = Date.now();
+    closeCaptureWindows();
     await new Promise((resolve) => setTimeout(resolve, 120));
 
     const captureDisplay = screen.getDisplayMatching(capture.selection);
@@ -398,10 +509,13 @@ function registerIpc(): void {
     let captureFallbackReason: string | undefined;
     if (!imageDataUrl) {
       try {
+        const captureStartedAt = Date.now();
         imageDataUrl = await captureSelection(captureWithDisplay.selection, captureWithDisplay.displayId);
+        logTiming("capture", captureStartedAt, `${captureWithDisplay.selection.width}x${captureWithDisplay.selection.height}`);
       } catch (error) {
         captureFallbackReason =
           error instanceof Error ? error.message : "Unable to capture the selected screen.";
+        logTiming("capture failed", totalStartedAt, captureFallbackReason);
         console.error("Screen capture failed; using fallback image.", error);
         imageDataUrl = "";
       }
@@ -420,6 +534,7 @@ function registerIpc(): void {
       setResultState({ status: "translating", capture: completedCapture, stage })
     );
     setResultState({ status: "done", capture: completedCapture, payload: latestResult });
+    logTiming("total", totalStartedAt);
 
     const settings = await getSettings();
     if (settings.autoCopy) {
@@ -429,7 +544,7 @@ function registerIpc(): void {
   });
 
   ipcMain.handle("capture:cancel", () => {
-    captureWindow?.close();
+    closeCaptureWindows();
   });
 
   ipcMain.handle("result:getPayload", () => latestResult);
