@@ -14,6 +14,157 @@ import "./styles.css";
 
 const screenTranslate = window.screenTranslate ?? createBrowserMockApi();
 
+const translations = {
+  "zh-CN": {
+    loadingSettings: "正在加载设置...",
+    appName: "屏幕翻译",
+    appDescription: "按下全局快捷键，选择屏幕上的文字区域，并在原位置显示翻译结果。",
+    saveSettings: "保存设置",
+    ready: "就绪",
+    saving: "正在保存...",
+    settingsSaved: "设置已保存。",
+    testingConnection: "正在测试连接...",
+    clearingHistory: "正在清除历史...",
+    historyCleared: "历史已清除。",
+    translationEngine: "翻译引擎",
+    engine: "引擎",
+    largeModel: "大模型",
+    baiduTranslate: "百度翻译",
+    largeModelSettings: "大模型",
+    baseUrl: "Base URL",
+    apiKey: "API Key",
+    apiKeySavedPlaceholder: "已保存。留空则保留当前密钥",
+    apiKeyPlaceholder: "输入 API Key",
+    model: "模型",
+    testConnection: "测试连接",
+    baiduSettings: "百度翻译",
+    baiduAppId: "App ID",
+    baiduAppIdPlaceholder: "百度翻译 App ID",
+    baiduSecretKey: "Secret Key",
+    baiduSecretSavedPlaceholder: "已保存。留空则保留当前密钥",
+    baiduSecretPlaceholder: "输入 Secret Key",
+    testBaidu: "测试百度",
+    translation: "翻译",
+    interfaceLanguage: "界面语言",
+    chinese: "中文",
+    english: "English",
+    targetLanguage: "目标语言",
+    shortcut: "快捷键",
+    timeout: "超时时间",
+    autoCopy: "自动复制翻译文本",
+    privacy: "隐私",
+    privacyDescription: "截图会使用本地 Windows OCR 处理。识别出的文字会发送给所选翻译服务。历史记录默认关闭，启用后仅保存在本机。",
+    saveHistory: "保存历史记录",
+    maxHistoryItems: "最大历史条数",
+    clearHistory: "清除历史",
+    status: "状态",
+    apiKeySaved: "API Key 已安全保存并隐藏。",
+    baiduSecretSaved: "百度 Secret Key 已安全保存并隐藏。",
+    settingsFile: "设置文件",
+    defaultShortcut: "默认快捷键：Ctrl + Alt + T。若快捷键截图已暂停，可使用托盘菜单。",
+    captureTip: "拖拽选择区域。按 Esc 取消。",
+    preparingTranslation: "正在准备翻译...",
+    fallbackUsed: "已使用备用结果",
+    translated: "已翻译",
+    overlay: "覆盖",
+    original: "原图",
+    text: "文本",
+    copy: "复制",
+    retry: "重试",
+    close: "关闭",
+    capturedRegion: "截图区域",
+    recognizingText: "正在识别文字...",
+    translating: "正在翻译...",
+    cancel: "取消",
+    preloadFailed: "预加载失败",
+    preloadFailedDescription: "桌面桥接未加载，无法保存设置。请重启应用，或在重新构建后运行 npm run dev。"
+  },
+  en: {
+    loadingSettings: "Loading settings...",
+    appName: "Screen Translate",
+    appDescription: "Press the global shortcut, select text on screen, and redraw the translation in place.",
+    saveSettings: "Save settings",
+    ready: "Ready",
+    saving: "Saving...",
+    settingsSaved: "Settings saved.",
+    testingConnection: "Testing connection...",
+    clearingHistory: "Clearing history...",
+    historyCleared: "History cleared.",
+    translationEngine: "Translation Engine",
+    engine: "Engine",
+    largeModel: "Large model",
+    baiduTranslate: "Baidu Translate",
+    largeModelSettings: "Large Model",
+    baseUrl: "Base URL",
+    apiKey: "API Key",
+    apiKeySavedPlaceholder: "Saved. Leave blank to keep current key",
+    apiKeyPlaceholder: "Enter API key",
+    model: "Model",
+    testConnection: "Test connection",
+    baiduSettings: "Baidu Translate",
+    baiduAppId: "App ID",
+    baiduAppIdPlaceholder: "Baidu Translate App ID",
+    baiduSecretKey: "Secret Key",
+    baiduSecretSavedPlaceholder: "Saved. Leave blank to keep current key",
+    baiduSecretPlaceholder: "Enter Secret Key",
+    testBaidu: "Test Baidu",
+    translation: "Translation",
+    interfaceLanguage: "Interface language",
+    chinese: "中文",
+    english: "English",
+    targetLanguage: "Target language",
+    shortcut: "Shortcut",
+    timeout: "Timeout",
+    autoCopy: "Auto-copy translated text",
+    privacy: "Privacy",
+    privacyDescription:
+      "Screenshots are processed with local Windows OCR. Recognized text is sent to the selected translation service. History is off by default and stored locally only when enabled.",
+    saveHistory: "Save history",
+    maxHistoryItems: "Maximum history items",
+    clearHistory: "Clear history",
+    status: "Status",
+    apiKeySaved: "API key is saved securely and hidden.",
+    baiduSecretSaved: "Baidu Secret Key is saved securely and hidden.",
+    settingsFile: "Settings file",
+    defaultShortcut: "Default shortcut: Ctrl + Alt + T. Use the tray menu if shortcut capture is paused.",
+    captureTip: "Drag to select a region. Press Esc to cancel.",
+    preparingTranslation: "Preparing translation...",
+    fallbackUsed: "Fallback used",
+    translated: "Translated",
+    overlay: "Overlay",
+    original: "Original",
+    text: "Text",
+    copy: "Copy",
+    retry: "Retry",
+    close: "Close",
+    capturedRegion: "Captured region",
+    recognizingText: "Recognizing text...",
+    translating: "Translating...",
+    cancel: "Cancel",
+    preloadFailed: "Preload failed",
+    preloadFailedDescription:
+      "The desktop bridge did not load, so settings cannot be saved. Restart the app with npm run dev after rebuilding."
+  }
+} as const;
+
+type TranslationKey = keyof typeof translations.en;
+
+function useInterfaceLanguage() {
+  const [language, setLanguage] = useState<AppSettings["interfaceLanguage"]>("zh-CN");
+
+  useEffect(() => {
+    screenTranslate.getSettings().then((snapshot) => {
+      setLanguage(snapshot.settings.interfaceLanguage);
+    });
+  }, []);
+
+  return language;
+}
+
+function translate(language: AppSettings["interfaceLanguage"], key: TranslationKey): string {
+  return translations[language][key];
+}
+
 function getView() {
   return new URLSearchParams(window.location.search).get("view") ?? "settings";
 }
@@ -40,11 +191,8 @@ function PreloadError() {
   return (
     <main className="settings-shell">
       <section className="settings-section">
-        <h1>Preload failed</h1>
-        <p className="muted">
-          The desktop bridge did not load, so settings cannot be saved. Restart the app with npm run dev
-          after rebuilding.
-        </p>
+        <h1>{translations["zh-CN"].preloadFailed}</h1>
+        <p className="muted">{translations["zh-CN"].preloadFailedDescription}</p>
       </section>
     </main>
   );
@@ -55,7 +203,7 @@ function SettingsView() {
   const [settingsSnapshot, setSettingsSnapshot] = useState<SettingsSnapshot | null>(null);
   const [apiKey, setApiKey] = useState("");
   const [baiduSecretKey, setBaiduSecretKey] = useState("");
-  const [status, setStatus] = useState("Ready");
+  const [status, setStatus] = useState("");
   const [isBusy, setIsBusy] = useState(false);
 
   useEffect(() => {
@@ -66,8 +214,10 @@ function SettingsView() {
   }, []);
 
   if (!settings) {
-    return <div className="loading">Loading settings...</div>;
+    return <div className="loading">{translations["zh-CN"].loadingSettings}</div>;
   }
+
+  const t = (key: TranslationKey) => translate(settings.interfaceLanguage, key);
 
   const update = <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
     setSettings({ ...settings, [key]: value });
@@ -75,7 +225,7 @@ function SettingsView() {
 
   const save = async () => {
     setIsBusy(true);
-    setStatus("Saving...");
+    setStatus(t("saving"));
     try {
       const saved = await screenTranslate.saveSettings(
         settings,
@@ -95,7 +245,7 @@ function SettingsView() {
       );
       setApiKey("");
       setBaiduSecretKey("");
-      setStatus("Settings saved.");
+      setStatus(t("settingsSaved"));
     } finally {
       setIsBusy(false);
     }
@@ -103,7 +253,7 @@ function SettingsView() {
 
   const testConnection = async (translationProvider = settings.translationProvider) => {
     setIsBusy(true);
-    setStatus("Testing connection...");
+    setStatus(t("testingConnection"));
     try {
       const result = await screenTranslate.testConnection(
         { ...settings, translationProvider },
@@ -118,10 +268,10 @@ function SettingsView() {
 
   const clearHistory = async () => {
     setIsBusy(true);
-    setStatus("Clearing history...");
+    setStatus(t("clearingHistory"));
     try {
       await screenTranslate.clearHistory();
-      setStatus("History cleared.");
+      setStatus(t("historyCleared"));
     } finally {
       setIsBusy(false);
     }
@@ -131,89 +281,98 @@ function SettingsView() {
     <main className="settings-shell">
       <section className="settings-hero">
         <div>
-          <h1>Screen Translate</h1>
-          <p>Press the global shortcut, select text on screen, and redraw the translation in place.</p>
+          <h1>{t("appName")}</h1>
+          <p>{t("appDescription")}</p>
         </div>
         <button className="primary-button" disabled={isBusy} onClick={save}>
-          Save settings
+          {t("saveSettings")}
         </button>
       </section>
 
       <section className="settings-grid">
         <div className="settings-section">
-          <h2>Translation Engine</h2>
-          <Field label="Engine">
+          <h2>{t("translationEngine")}</h2>
+          <Field label={t("engine")}>
             <select
               value={settings.translationProvider}
               onChange={(event) => update("translationProvider", event.target.value as AppSettings["translationProvider"])}
             >
-              <option value="openai">Large model</option>
-              <option value="baidu">Baidu Translate</option>
+              <option value="openai">{t("largeModel")}</option>
+              <option value="baidu">{t("baiduTranslate")}</option>
             </select>
           </Field>
         </div>
 
         <div className="settings-section">
-          <h2>Large Model</h2>
-          <Field label="Base URL">
+          <h2>{t("largeModelSettings")}</h2>
+          <Field label={t("baseUrl")}>
             <input
               value={settings.baseUrl}
               onChange={(event) => update("baseUrl", event.target.value)}
               placeholder="https://api.openai.com/v1"
             />
           </Field>
-          <Field label="API Key">
+          <Field label={t("apiKey")}>
             <input
               value={apiKey}
               onChange={(event) => setApiKey(event.target.value)}
               type="password"
-              placeholder={settingsSnapshot?.hasApiKey ? "Saved. Leave blank to keep current key" : "Enter API key"}
+              placeholder={settingsSnapshot?.hasApiKey ? t("apiKeySavedPlaceholder") : t("apiKeyPlaceholder")}
             />
           </Field>
-          <Field label="Model">
+          <Field label={t("model")}>
             <input value={settings.model} onChange={(event) => update("model", event.target.value)} />
           </Field>
           <button className="secondary-button" disabled={isBusy} onClick={() => testConnection("openai")}>
-            Test connection
+            {t("testConnection")}
           </button>
         </div>
 
         <div className="settings-section">
-          <h2>Baidu Translate</h2>
-          <Field label="App ID">
+          <h2>{t("baiduSettings")}</h2>
+          <Field label={t("baiduAppId")}>
             <input
               value={settings.baiduAppId}
               onChange={(event) => update("baiduAppId", event.target.value)}
-              placeholder="Baidu Translate App ID"
+              placeholder={t("baiduAppIdPlaceholder")}
             />
           </Field>
-          <Field label="Secret Key">
+          <Field label={t("baiduSecretKey")}>
             <input
               value={baiduSecretKey}
               onChange={(event) => setBaiduSecretKey(event.target.value)}
               type="password"
               placeholder={
-                settingsSnapshot?.hasBaiduSecretKey ? "Saved. Leave blank to keep current key" : "Enter Secret Key"
+                settingsSnapshot?.hasBaiduSecretKey ? t("baiduSecretSavedPlaceholder") : t("baiduSecretPlaceholder")
               }
             />
           </Field>
           <button className="secondary-button" disabled={isBusy} onClick={() => testConnection("baidu")}>
-            Test Baidu
+            {t("testBaidu")}
           </button>
         </div>
 
         <div className="settings-section">
-          <h2>Translation</h2>
-          <Field label="Target language">
+          <h2>{t("translation")}</h2>
+          <Field label={t("interfaceLanguage")}>
+            <select
+              value={settings.interfaceLanguage}
+              onChange={(event) => update("interfaceLanguage", event.target.value as AppSettings["interfaceLanguage"])}
+            >
+              <option value="zh-CN">{t("chinese")}</option>
+              <option value="en">{t("english")}</option>
+            </select>
+          </Field>
+          <Field label={t("targetLanguage")}>
             <input
               value={settings.targetLanguage}
               onChange={(event) => update("targetLanguage", event.target.value)}
             />
           </Field>
-          <Field label="Shortcut">
+          <Field label={t("shortcut")}>
             <input value={settings.shortcut} onChange={(event) => update("shortcut", event.target.value)} />
           </Field>
-          <Field label="Timeout">
+          <Field label={t("timeout")}>
             <input
               type="number"
               min={5000}
@@ -227,25 +386,22 @@ function SettingsView() {
               checked={settings.autoCopy}
               onChange={(event) => update("autoCopy", event.target.checked)}
             />
-            Auto-copy translated text
+            {t("autoCopy")}
           </label>
         </div>
 
         <div className="settings-section">
-          <h2>Privacy</h2>
-          <p className="muted">
-            Screenshots are processed with local Windows OCR. Recognized text is sent to the selected
-            translation service. History is off by default and stored locally only when enabled.
-          </p>
+          <h2>{t("privacy")}</h2>
+          <p className="muted">{t("privacyDescription")}</p>
           <label className="switch-row">
             <input
               type="checkbox"
               checked={settings.saveHistory}
               onChange={(event) => update("saveHistory", event.target.checked)}
             />
-            Save history
+            {t("saveHistory")}
           </label>
-          <Field label="Maximum history items">
+          <Field label={t("maxHistoryItems")}>
             <input
               type="number"
               min={1}
@@ -255,19 +411,19 @@ function SettingsView() {
             />
           </Field>
           <button className="secondary-button" disabled={isBusy || !settings.saveHistory} onClick={clearHistory}>
-            Clear history
+            {t("clearHistory")}
           </button>
         </div>
 
         <div className="settings-section status-section">
-          <h2>Status</h2>
-          <p>{status}</p>
-          {settingsSnapshot?.hasApiKey ? <p className="muted">API key is saved securely and hidden.</p> : null}
+          <h2>{t("status")}</h2>
+          <p>{status || t("ready")}</p>
+          {settingsSnapshot?.hasApiKey ? <p className="muted">{t("apiKeySaved")}</p> : null}
           {settingsSnapshot?.hasBaiduSecretKey ? (
-            <p className="muted">Baidu Secret Key is saved securely and hidden.</p>
+            <p className="muted">{t("baiduSecretSaved")}</p>
           ) : null}
-          {settingsSnapshot ? <p className="muted">Settings file: {settingsSnapshot.storagePath}</p> : null}
-          <p className="muted">Default shortcut: Ctrl + Alt + T. Use the tray menu if shortcut capture is paused.</p>
+          {settingsSnapshot ? <p className="muted">{t("settingsFile")}: {settingsSnapshot.storagePath}</p> : null}
+          <p className="muted">{t("defaultShortcut")}</p>
         </div>
       </section>
     </main>
@@ -284,6 +440,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 function CaptureView() {
+  const language = useInterfaceLanguage();
+  const t = (key: TranslationKey) => translate(language, key);
   const [start, setStart] = useState<{ x: number; y: number } | null>(null);
   const [current, setCurrent] = useState<{ x: number; y: number } | null>(null);
   const [captureBounds, setCaptureBounds] = useState<CaptureSelection | null>(null);
@@ -347,7 +505,7 @@ function CaptureView() {
       }}
       onMouseUp={complete}
     >
-      <div className="capture-tip">Drag to select a region. Press Esc to cancel.</div>
+      <div className="capture-tip">{t("captureTip")}</div>
       {selection ? (
         <div
           className="selection-box"
@@ -364,6 +522,8 @@ function CaptureView() {
 }
 
 function ResultView() {
+  const language = useInterfaceLanguage();
+  const t = (key: TranslationKey) => translate(language, key);
   const [state, setState] = useState<ResultState | null>(null);
   const [mode, setMode] = useState<"overlay" | "original" | "text">("overlay");
 
@@ -385,11 +545,11 @@ function ResultView() {
   }, []);
 
   if (!state) {
-    return <div className="result-empty">Preparing translation...</div>;
+    return <div className="result-empty">{t("preparingTranslation")}</div>;
   }
 
   if (state.status === "translating") {
-    return <TranslatingView capture={state.capture} stage={state.stage} />;
+    return <TranslatingView capture={state.capture} stage={state.stage} language={language} />;
   }
 
   const payload = state.payload;
@@ -399,13 +559,13 @@ function ResultView() {
   return (
     <main className="result-shell">
       <div className="result-toolbar">
-        <span className="result-title">{payload.usedFallback ? "Fallback used" : "Translated"}</span>
-        <button onClick={() => setMode("overlay")}>Overlay</button>
-        <button onClick={() => setMode("original")}>Original</button>
-        <button onClick={() => setMode("text")}>Text</button>
-        <button onClick={() => screenTranslate.copyText(allText)}>Copy</button>
-        <button onClick={() => screenTranslate.retryLastCapture()}>Retry</button>
-        <button onClick={() => screenTranslate.closeResultWindow()}>Close</button>
+        <span className="result-title">{payload.usedFallback ? t("fallbackUsed") : t("translated")}</span>
+        <button onClick={() => setMode("overlay")}>{t("overlay")}</button>
+        <button onClick={() => setMode("original")}>{t("original")}</button>
+        <button onClick={() => setMode("text")}>{t("text")}</button>
+        <button onClick={() => screenTranslate.copyText(allText)}>{t("copy")}</button>
+        <button onClick={() => screenTranslate.retryLastCapture()}>{t("retry")}</button>
+        <button onClick={() => screenTranslate.closeResultWindow()}>{t("close")}</button>
       </div>
 
       <section className="result-canvas">
@@ -420,7 +580,7 @@ function ResultView() {
           <img
             className="original-capture"
             src={payload.capture.imageDataUrl}
-            alt="Captured region"
+            alt={t("capturedRegion")}
             style={{
               width: payload.capture.selection.width,
               height: payload.capture.selection.height
@@ -434,8 +594,17 @@ function ResultView() {
   );
 }
 
-function TranslatingView({ capture, stage }: { capture: CaptureResult; stage: TranslatingStage }) {
+function TranslatingView({
+  capture,
+  stage,
+  language
+}: {
+  capture: CaptureResult;
+  stage: TranslatingStage;
+  language: AppSettings["interfaceLanguage"];
+}) {
   const [elapsed, setElapsed] = useState(0);
+  const t = (key: TranslationKey) => translate(language, key);
 
   useEffect(() => {
     const started = Date.now();
@@ -445,7 +614,7 @@ function TranslatingView({ capture, stage }: { capture: CaptureResult; stage: Tr
     return () => window.clearInterval(timer);
   }, []);
 
-  const title = stage === "ocr" ? "Recognizing text…" : "Translating…";
+  const title = stage === "ocr" ? t("recognizingText") : t("translating");
 
   return (
     <main className="result-shell">
@@ -454,7 +623,7 @@ function TranslatingView({ capture, stage }: { capture: CaptureResult; stage: Tr
           <img
             className="original-capture translating-image"
             src={capture.imageDataUrl}
-            alt="Captured region"
+            alt={t("capturedRegion")}
             style={{
               width: capture.selection.width,
               height: capture.selection.height
@@ -469,7 +638,7 @@ function TranslatingView({ capture, stage }: { capture: CaptureResult; stage: Tr
               <span className="translating-elapsed">{elapsed.toFixed(1)}s</span>
             </div>
             <button className="translating-cancel" onClick={() => screenTranslate.closeResultWindow()}>
-              Cancel
+              {t("cancel")}
             </button>
           </div>
         </div>
@@ -575,6 +744,7 @@ function rgba(hex: string, opacity: number): string {
 
 function createBrowserMockApi(): ScreenTranslateApi {
   const settings: AppSettings = {
+    interfaceLanguage: "zh-CN",
     translationProvider: "openai",
     baseUrl: "https://api.openai.com/v1",
     model: "gpt-4.1-mini",

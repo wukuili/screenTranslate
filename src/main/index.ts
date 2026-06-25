@@ -479,11 +479,17 @@ function registerIpc(): void {
       try {
         if (settings.translationProvider === "baidu") {
           await testBaiduTranslateEndpoint(settings, baiduSecretKey ?? (await getBaiduSecretKey()));
-          return { ok: true, message: "Baidu Translate connection succeeded." };
+          return {
+            ok: true,
+            message: settings.interfaceLanguage === "zh-CN" ? "百度翻译连接成功。" : "Baidu Translate connection succeeded."
+          };
         }
 
         await testOpenAiCompatibleEndpoint(settings, apiKey ?? (await getApiKey()));
-        return { ok: true, message: "Connection succeeded." };
+        return {
+          ok: true,
+          message: settings.interfaceLanguage === "zh-CN" ? "连接成功。" : "Connection succeeded."
+        };
       } catch (error) {
         return { ok: false, message: error instanceof Error ? error.message : "Connection failed." };
       }

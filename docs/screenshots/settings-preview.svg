@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="720" viewBox="0 0 1120 720" role="img" aria-labelledby="title desc">
+  <title id="title">Screen Translate settings preview</title>
+  <desc id="desc">A settings screen showing translation engine, large model, Baidu Translate, translation, privacy, and status sections.</desc>
+  <rect width="1120" height="720" fill="#f6f7fb"/>
+  <g transform="translate(64 48)">
+    <text x="0" y="0" dominant-baseline="hanging" font-family="Segoe UI, Arial, sans-serif" font-size="36" font-weight="700" fill="#111827">屏幕翻译 / Screen Translate</text>
+    <text x="0" y="52" font-family="Segoe UI, Arial, sans-serif" font-size="18" fill="#64748b">选择翻译引擎、界面语言和快捷键 / Configure engine, UI language, and shortcut</text>
+    <rect x="800" y="-4" width="160" height="48" rx="8" fill="#2563eb"/>
+    <text x="880" y="20" text-anchor="middle" dominant-baseline="middle" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="700" fill="#ffffff">保存设置</text>
+  </g>
+  <g transform="translate(64 150)" font-family="Segoe UI, Arial, sans-serif">
+    <g>
+      <rect width="476" height="142" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+      <text x="24" y="34" font-size="20" font-weight="700" fill="#111827">翻译引擎 / Translation Engine</text>
+      <text x="24" y="72" font-size="14" font-weight="700" fill="#334155">引擎 / Engine</text>
+      <rect x="24" y="86" width="428" height="36" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+      <text x="40" y="109" font-size="15" fill="#0f172a">百度翻译 / Baidu Translate</text>
+    </g>
+    <g transform="translate(516 0)">
+      <rect width="476" height="218" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+      <text x="24" y="34" font-size="20" font-weight="700" fill="#111827">大模型 / Large Model</text>
+      <text x="24" y="72" font-size="14" font-weight="700" fill="#334155">Base URL</text>
+      <rect x="24" y="86" width="428" height="34" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+      <text x="40" y="108" font-size="14" fill="#64748b">https://api.openai.com/v1</text>
+      <text x="24" y="144" font-size="14" font-weight="700" fill="#334155">Model</text>
+      <rect x="24" y="158" width="428" height="34" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+      <text x="40" y="180" font-size="14" fill="#0f172a">gpt-4.1-mini</text>
+    </g>
+    <g transform="translate(0 182)">
+      <rect width="476" height="226" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+      <text x="24" y="34" font-size="20" font-weight="700" fill="#111827">百度翻译 / Baidu Translate</text>
+      <text x="24" y="72" font-size="14" font-weight="700" fill="#334155">App ID</text>
+      <rect x="24" y="86" width="428" height="34" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+      <text x="40" y="108" font-size="14" fill="#64748b">Baidu Translate App ID</text>
+      <text x="24" y="144" font-size="14" font-weight="700" fill="#334155">Secret Key</text>
+      <rect x="24" y="158" width="428" height="34" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+      <text x="40" y="180" font-size="14" fill="#64748b">已安全保存 / Saved securely</text>
+    </g>
+    <g transform="translate(516 258)">
+      <rect width="476" height="234" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+      <text x="24" y="34" font-size="20" font-weight="700" fill="#111827">翻译 / Translation</text>
+      <text x="24" y="72" font-size="14" font-weight="700" fill="#334155">界面语言 / Interface language</text>
+      <rect x="24" y="86" width="428" height="34" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+      <text x="40" y="108" font-size="14" fill="#0f172a">中文</text>
+      <text x="24" y="144" font-size="14" font-weight="700" fill="#334155">目标语言 / Target language</text>
+      <rect x="24" y="158" width="428" height="34" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+      <text x="40" y="180" font-size="14" fill="#0f172a">中文</text>
+    </g>
+  </g>
+</svg>

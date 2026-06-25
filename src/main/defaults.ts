@@ -1,6 +1,7 @@
 import type { AppSettings, TranslationResult } from "../shared/types";
 
 export const defaultSettings: AppSettings = {
+  interfaceLanguage: "zh-CN",
   translationProvider: "openai",
   baseUrl: "https://api.openai.com/v1",
   model: "gpt-4.1-mini",

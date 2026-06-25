@@ -1,7 +1,9 @@
 export type ViewMode = "settings" | "capture" | "result";
 export type TranslationProvider = "openai" | "baidu";
+export type InterfaceLanguage = "zh-CN" | "en";
 
 export interface AppSettings {
+  interfaceLanguage: InterfaceLanguage;
   translationProvider: TranslationProvider;
   baseUrl: string;
   model: string;

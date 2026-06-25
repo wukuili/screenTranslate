@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="640" viewBox="0 0 1120 640" role="img" aria-labelledby="title desc">
+  <title id="title">Screen Translate result overlay preview</title>
+  <desc id="desc">A result window preview showing translated text blocks over a captured region.</desc>
+  <defs>
+    <linearGradient id="page" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#eef2ff"/>
+      <stop offset="1" stop-color="#f8fafc"/>
+    </linearGradient>
+  </defs>
+  <rect width="1120" height="640" fill="#0f172a"/>
+  <rect x="72" y="64" width="976" height="512" rx="14" fill="url(#page)"/>
+  <g font-family="Segoe UI, Arial, sans-serif">
+    <rect x="96" y="88" width="500" height="48" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="116" y="118" font-size="15" font-weight="700" fill="#475569">已翻译 / Translated</text>
+    <rect x="228" y="98" width="70" height="28" rx="6" fill="#eef2ff"/>
+    <text x="263" y="116" text-anchor="middle" font-size="13" font-weight="700" fill="#1e293b">覆盖</text>
+    <rect x="306" y="98" width="70" height="28" rx="6" fill="#eef2ff"/>
+    <text x="341" y="116" text-anchor="middle" font-size="13" font-weight="700" fill="#1e293b">原图</text>
+    <rect x="384" y="98" width="70" height="28" rx="6" fill="#eef2ff"/>
+    <text x="419" y="116" text-anchor="middle" font-size="13" font-weight="700" fill="#1e293b">文本</text>
+    <rect x="462" y="98" width="70" height="28" rx="6" fill="#eef2ff"/>
+    <text x="497" y="116" text-anchor="middle" font-size="13" font-weight="700" fill="#1e293b">复制</text>
+  </g>
+  <g transform="translate(170 180)" font-family="Segoe UI, Arial, sans-serif">
+    <rect width="780" height="320" rx="10" fill="#ffffff" stroke="#dbe3ef"/>
+    <text x="48" y="74" font-size="32" font-weight="700" fill="#111827">Translate text on screen</text>
+    <text x="48" y="134" font-size="24" fill="#1f2937">OpenAI-compatible model or Baidu Translate</text>
+    <text x="48" y="194" font-size="22" fill="#1f2937">Select a region, then view the translated overlay.</text>
+    <rect x="42" y="42" width="410" height="48" rx="8" fill="#ffffff" opacity="0.94" stroke="#bfdbfe"/>
+    <text x="58" y="73" font-size="21" font-weight="700" fill="#111827">翻译屏幕上的文字</text>
+    <rect x="42" y="104" width="560" height="42" rx="8" fill="#ffffff" opacity="0.94" stroke="#bfdbfe"/>
+    <text x="58" y="132" font-size="19" fill="#111827">兼容 OpenAI 的大模型或百度翻译</text>
+    <rect x="42" y="164" width="610" height="42" rx="8" fill="#ffffff" opacity="0.94" stroke="#bfdbfe"/>
+    <text x="58" y="192" font-size="18" fill="#111827">选择区域后，以覆盖层查看翻译结果。</text>
+  </g>
+</svg>
