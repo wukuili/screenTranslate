@@ -618,6 +618,7 @@ function TranslatingView({
 
   return (
     <main className="result-shell">
+      <div className="result-toolbar-spacer" aria-hidden="true" />
       <section className="result-canvas translating-canvas">
         {capture.imageDataUrl ? (
           <img

@@ -191,22 +191,24 @@ button:disabled {
 }
 
 .result-shell {
+  display: flex;
+  flex-direction: column;
   width: 100vw;
   height: 100vh;
   overflow: hidden;
 }
 
 .result-toolbar {
-  position: fixed;
+  position: relative;
+  flex: 0 0 56px;
   z-index: 20;
-  left: 12px;
-  top: 12px;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px;
+  padding: 8px 12px;
   border: 1px solid rgba(148, 163, 184, 0.35);
-  border-radius: 8px;
+  border-radius: 0 0 8px 8px;
   background: rgba(255, 255, 255, 0.92);
   box-shadow: 0 16px 40px rgba(15, 23, 42, 0.16);
 }
@@ -227,10 +229,15 @@ button:disabled {
   font-weight: 700;
 }
 
+.result-toolbar-spacer {
+  flex: 0 0 56px;
+}
+
 .result-canvas {
+  flex: 1 1 auto;
   position: relative;
   width: 100vw;
-  height: 100vh;
+  min-height: 0;
   background: transparent;
 }
 

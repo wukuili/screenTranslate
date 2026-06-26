@@ -198,11 +198,14 @@ function createResultWindow(capture: CaptureResult): void {
   }
 
   const { selection } = capture;
+  const display = screen.getDisplayMatching(selection);
+  const resultY = Math.max(display.bounds.y, Math.round(selection.y) - RESULT_TOOLBAR_HEIGHT);
+  const toolbarOffset = Math.round(selection.y) - resultY;
   resultWindow = new BrowserWindow({
     x: Math.round(selection.x),
-    y: Math.round(selection.y),
+    y: resultY,
     width: Math.max(RESULT_TOOLBAR_WIDTH, Math.round(selection.width)),
-    height: Math.max(RESULT_TOOLBAR_HEIGHT, Math.round(selection.height)),
+    height: toolbarOffset + Math.round(selection.height),
     frame: false,
     transparent: true,
     alwaysOnTop: true,
