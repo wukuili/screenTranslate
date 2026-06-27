@@ -8,6 +8,7 @@ import type {
   ResultState,
   ScreenTranslateApi,
   SettingsSnapshot,
+  TranslationBlock,
   TranslatingStage
 } from "../shared/types";
 import "./styles.css";
@@ -664,15 +665,16 @@ function TranslatedOverlay({ payload }: { payload: ResultPayload }) {
         const opacity = block.backgroundHint?.opacity ?? 0.9;
         const background = block.backgroundHint?.color ?? "#ffffff";
         const fontSize = Math.max(12, Math.min(block.fontHint?.size ?? 16, block.bbox.height * 0.55));
+        const layout = getTranslationChipLayout(block, payload.capture.selection.width, fontSize);
 
         return (
           <div
             className={block.confidence < 0.6 ? "translation-chip low-confidence" : "translation-chip"}
             key={`${block.sourceText}-${index}`}
             style={{
-              left: block.bbox.x,
+              left: layout.x,
               top: block.bbox.y,
-              width: block.bbox.width,
+              width: layout.width,
               minHeight: block.bbox.height,
               background: rgba(background, opacity),
               color: block.fontHint?.color ?? "#111827",
@@ -686,6 +688,37 @@ function TranslatedOverlay({ payload }: { payload: ResultPayload }) {
       })}
     </div>
   );
+}
+
+function getTranslationChipLayout(
+  block: TranslationBlock,
+  captureWidth: number,
+  fontSize: number
+): { x: number; width: number } {
+  const padding = 16;
+  const textWidth = estimateTextWidth(block.translatedText, fontSize) + padding;
+  const desiredWidth = Math.max(block.bbox.width, textWidth);
+  const maxWidth = Math.max(block.bbox.width, Math.min(captureWidth, Math.round(captureWidth * 0.48)));
+  const width = Math.min(desiredWidth, maxWidth);
+  const x = Math.min(block.bbox.x, Math.max(0, captureWidth - width));
+
+  return { x, width };
+}
+
+function estimateTextWidth(text: string, fontSize: number): number {
+  let width = 0;
+
+  for (const char of text) {
+    if (/\s/.test(char)) {
+      width += fontSize * 0.35;
+    } else if (/[\u3400-\u9fff\uf900-\ufaff]/.test(char)) {
+      width += fontSize;
+    } else {
+      width += fontSize * 0.58;
+    }
+  }
+
+  return Math.ceil(width);
 }
 
 function TextPanel({ payload }: { payload: ResultPayload }) {

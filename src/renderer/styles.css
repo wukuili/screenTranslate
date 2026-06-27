@@ -363,11 +363,13 @@ button:disabled {
 .translation-chip {
   position: absolute;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   padding: 5px 8px;
   border-radius: 5px;
   line-height: 1.22;
+  white-space: normal;
   overflow-wrap: anywhere;
+  word-break: normal;
   box-shadow: 0 0 0 1px rgba(226, 232, 240, 0.8);
 }
 
