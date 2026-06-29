@@ -1,4 +1,5 @@
 import type { AppSettings, CaptureResult, TranslationResult } from "../shared/types";
+import { chunkArray, mapConcurrent } from "./concurrency";
 import { extractJsonObject, parseTranslationResult } from "./translation-schema";
 
 interface ChatCompletionResponse {
@@ -10,6 +11,14 @@ interface ChatCompletionResponse {
 }
 
 type MessageContent = NonNullable<NonNullable<ChatCompletionResponse["choices"]>[number]["message"]>["content"];
+type ChatRequestContent = string | Array<{ type: "text"; text: string } | { type: "image_url"; image_url: { url: string } }>;
+
+interface ChatRequestMessage {
+  role: "system" | "user";
+  content: ChatRequestContent;
+}
+
+type ResponseFormatMode = "json_schema" | "text";
 
 export async function translateScreenshot(
   settings: AppSettings,
@@ -32,53 +41,34 @@ export async function translateScreenshot(
   }, settings.requestTimeoutMs);
 
   try {
-    const response = await fetch(`${settings.baseUrl.replace(/\/$/, "")}/chat/completions`, {
-      method: "POST",
-      signal: controller.signal,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: settings.model,
-        temperature: 0.2,
-        response_format: { type: "json_object" },
-        messages: [
-          {
-            role: "system",
-            content:
-              "You extract and translate text from screenshots. Return strict JSON only. Coordinates must be relative to the input image."
-          },
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text:
-                  `Translate visible text to ${settings.targetLanguage}. ` +
-                  "Return JSON with sourceLanguage, targetLanguage, and blocks. " +
-                  "Each block needs sourceText, translatedText, bbox as a JSON object {\"x\":number,\"y\":number,\"width\":number,\"height\":number} (not an array), optional fontHint, optional backgroundHint, and confidence 0..1."
-              },
-              {
-                type: "image_url",
-                image_url: { url: capture.imageDataUrl }
-              }
-            ]
-          }
-        ]
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`Model request failed: ${response.status} ${response.statusText}${await readErrorBody(response)}`);
-    }
-
-    const data = (await response.json()) as ChatCompletionResponse;
-    const content = normalizeMessageContent(data.choices?.[0]?.message?.content);
-
-    if (!content) {
-      throw new Error("Model response did not include message content.");
-    }
+    const content = await requestJsonContentWithFormatFallback(
+      settings,
+      apiKey,
+      [
+        {
+          role: "system",
+          content:
+            "You extract and translate text from screenshots. Return strict JSON only. Coordinates must be relative to the input image."
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text:
+                `Translate visible text to ${settings.targetLanguage}. ` +
+                "Return JSON with sourceLanguage, targetLanguage, and blocks. " +
+                "Each block needs sourceText, translatedText, bbox as a JSON object {\"x\":number,\"y\":number,\"width\":number,\"height\":number} (not an array), optional fontHint, optional backgroundHint, and confidence 0..1."
+            },
+            {
+              type: "image_url",
+              image_url: { url: capture.imageDataUrl }
+            }
+          ]
+        }
+      ],
+      controller.signal
+    );
 
     return parseTranslationResult(extractJsonObject(content));
   } catch (error) {
@@ -112,6 +102,9 @@ interface SegmentsResponse {
   segments?: unknown;
 }
 
+const TEXT_TRANSLATION_BATCH_SIZE = 6;
+const TEXT_TRANSLATION_CONCURRENCY = 4;
+
 // Shared JSON chat-completion request with timeout handling. The OCR step already produced
 // the source text, so these calls are text-only — far faster and cheaper than asking a
 // vision model to read the screenshot and guess layout.
@@ -128,31 +121,7 @@ async function requestChatJson(settings: AppSettings, apiKey: string, messages: 
   }, settings.requestTimeoutMs);
 
   try {
-    const response = await fetch(`${settings.baseUrl.replace(/\/$/, "")}/chat/completions`, {
-      method: "POST",
-      signal: controller.signal,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: settings.model,
-        temperature: 0.2,
-        response_format: { type: "json_object" },
-        messages
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`Model request failed: ${response.status} ${response.statusText}${await readErrorBody(response)}`);
-    }
-
-    const data = (await response.json()) as ChatCompletionResponse;
-    const content = normalizeMessageContent(data.choices?.[0]?.message?.content);
-
-    if (!content) {
-      throw new Error("Model response did not include message content.");
-    }
+    const content = await requestJsonContentWithFormatFallback(settings, apiKey, messages, controller.signal);
 
     return extractJsonObject(content);
   } catch (error) {
@@ -166,6 +135,92 @@ async function requestChatJson(settings: AppSettings, apiKey: string, messages: 
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function requestJsonContentWithFormatFallback(
+  settings: AppSettings,
+  apiKey: string,
+  messages: ChatRequestMessage[],
+  signal: AbortSignal
+): Promise<string> {
+  try {
+    return await requestChatContent(settings, apiKey, messages, signal, "json_schema");
+  } catch (error) {
+    if (!isResponseFormatError(error)) {
+      throw error;
+    }
+
+    return requestChatContent(settings, apiKey, messages, signal, "text");
+  }
+}
+
+async function requestChatContent(
+  settings: AppSettings,
+  apiKey: string,
+  messages: ChatRequestMessage[],
+  signal: AbortSignal,
+  responseFormatMode: ResponseFormatMode
+): Promise<string> {
+  const response = await fetch(`${settings.baseUrl.replace(/\/$/, "")}/chat/completions`, {
+    method: "POST",
+    signal,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: settings.model,
+      temperature: 0.2,
+      response_format: createResponseFormat(responseFormatMode),
+      messages
+    })
+  });
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new ModelRequestError(response.status, response.statusText, body);
+  }
+
+  const data = (await response.json()) as ChatCompletionResponse;
+  const content = normalizeMessageContent(data.choices?.[0]?.message?.content);
+
+  if (!content) {
+    throw new Error("Model response did not include message content.");
+  }
+
+  return content;
+}
+
+function createResponseFormat(mode: ResponseFormatMode) {
+  if (mode === "text") {
+    return { type: "text" };
+  }
+
+  return {
+    type: "json_schema",
+    json_schema: {
+      name: "json_response",
+      schema: {
+        type: "object"
+      },
+      strict: false
+    }
+  };
+}
+
+class ModelRequestError extends Error {
+  constructor(
+    readonly status: number,
+    statusText: string,
+    readonly body: string
+  ) {
+    super(`Model request failed: ${status} ${statusText}${body ? ` - ${body.slice(0, 500)}` : ""}`);
+    this.name = "ModelRequestError";
+  }
+}
+
+function isResponseFormatError(error: unknown): boolean {
+  return error instanceof ModelRequestError && error.status === 400 && /response_format/i.test(error.body);
 }
 
 // Merges OCR lines that belong to the same sentence/paragraph and translates each merged
@@ -229,6 +284,48 @@ export async function translateGroupedLines(
 
 // Per-line translation fallback used when grouping yields nothing usable.
 export async function translateTexts(
+  settings: AppSettings,
+  apiKey: string,
+  texts: string[]
+): Promise<string[]> {
+  if (texts.length === 0) {
+    return [];
+  }
+
+  const indexedTexts = texts.map((text, index) => ({ text, index }));
+  const batches = chunkArray(indexedTexts, TEXT_TRANSLATION_BATCH_SIZE);
+  const translated = new Array<string>(texts.length);
+
+  await mapConcurrent(batches, TEXT_TRANSLATION_CONCURRENCY, async (batch) => {
+    const parsed = (await requestChatJson(settings, apiKey, [
+      {
+        role: "system",
+        content:
+          "You are a translation engine. Translate each input line and return strict JSON only. " +
+          "Preserve order and item count exactly. Do not merge or split lines."
+      },
+      {
+        role: "user",
+        content:
+          `Translate each line below into ${settings.targetLanguage}. ` +
+          'Return JSON shaped as {"translations": string[]} where translations[i] is the translation ' +
+          "of line i, with the same number of items in the same order.\n\n" +
+          JSON.stringify({ lines: batch.map((item) => item.text) })
+      }
+    ])) as TranslationsResponse;
+
+    const translations = Array.isArray(parsed.translations) ? parsed.translations : [];
+
+    batch.forEach((item, batchIndex) => {
+      const value = translations[batchIndex];
+      translated[item.index] = typeof value === "string" && value.trim() ? value : item.text;
+    });
+  });
+
+  return translated.map((value, index) => value ?? texts[index]);
+}
+
+export async function translateTextsSingleRequest(
   settings: AppSettings,
   apiKey: string,
   texts: string[]

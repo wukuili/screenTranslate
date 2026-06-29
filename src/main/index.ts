@@ -26,15 +26,19 @@ import { createMockCaptureImageDataUrl, mockTranslation } from "./defaults";
 import {
   getApiKey,
   getBaiduSecretKey,
+  getDeeplxToken,
   getSettings,
   getSettingsStoragePath,
   hasApiKey,
   hasBaiduSecretKey,
+  hasDeeplxToken,
   saveSettings
 } from "./settings-store";
-import { testOpenAiCompatibleEndpoint, translateGroupedLines, translateTexts } from "./openai-compatible";
+import { testOpenAiCompatibleEndpoint, translateTexts } from "./openai-compatible";
 import { testBaiduTranslateEndpoint, translateTextsWithBaidu } from "./baidu-translate";
+import { testDeeplxEndpoint, translateTextsWithDeeplx } from "./deeplx-translate";
 import { recognizeText, type OcrLine } from "./ocr";
+import { groupOcrLinesBySentence } from "./ocr-line-grouper";
 import { captureSelection } from "./screen-capture";
 import { normalizeTranslationForCapture } from "./translation-normalizer";
 import { clearHistory, saveHistoryEntry } from "./history-store";
@@ -51,7 +55,6 @@ const RESULT_TOOLBAR_WIDTH = 460;
 const RESULT_TOOLBAR_HEIGHT = 56;
 const APP_NAME = "Screen Translate";
 const LOOPBACK_PROXY_BYPASS = "<-loopback>;localhost;127.0.0.1;[::1]";
-const FAST_TRANSLATE_LINE_LIMIT = 4;
 
 app.setName(APP_NAME);
 app.setPath("userData", join(app.getPath("appData"), APP_NAME));
@@ -236,13 +239,19 @@ async function translateCapture(
   const settings = await getSettings();
   const apiKey = await getApiKey();
   const baiduSecretKey = await getBaiduSecretKey();
+  const deeplxToken = await getDeeplxToken();
   const startedAt = Date.now();
   let activeStage: TranslatingStage = "ocr";
 
   try {
     onStage?.("ocr");
     const ocrStartedAt = Date.now();
-    const lines = await recognizeText(capture.imageDataUrl);
+    const lines = await recognizeText(
+      capture.imageDataUrl,
+      settings.ocrProvider,
+      settings.requestTimeoutMs,
+      settings.paddleOcrApiUrl
+    );
     logTiming("ocr", ocrStartedAt, `${lines.length} line${lines.length === 1 ? "" : "s"}`);
     if (lines.length === 0) {
       throw new Error("No text was detected in the selected area.");
@@ -251,12 +260,9 @@ async function translateCapture(
     activeStage = "translating";
     onStage?.("translating");
     const modelStartedAt = Date.now();
-    const blocks =
-      settings.translationProvider === "baidu"
-        ? await buildBaiduTranslatedBlocks(settings, baiduSecretKey, lines)
-        : await buildTranslatedBlocks(settings, apiKey, lines);
+    const blocks = await buildTranslatedBlocksForProvider(settings, apiKey, baiduSecretKey, deeplxToken, lines);
     logTiming(
-      settings.translationProvider === "baidu" ? "baidu" : "model",
+      settings.translationProvider === "baidu" ? "baidu" : settings.translationProvider === "deeplx" ? "deeplx" : "model",
       modelStartedAt,
       `${blocks.length} block${blocks.length === 1 ? "" : "s"}`
     );
@@ -284,105 +290,82 @@ async function translateCapture(
   }
 }
 
+async function buildTranslatedBlocksForProvider(
+  settings: AppSettings,
+  apiKey: string,
+  baiduSecretKey: string,
+  deeplxToken: string,
+  lines: OcrLine[]
+): Promise<TranslationBlock[]> {
+  if (settings.translationProvider === "baidu") {
+    return buildBaiduTranslatedBlocks(settings, baiduSecretKey, lines);
+  }
+
+  if (settings.translationProvider === "deeplx") {
+    return buildDeeplxTranslatedBlocks(settings, deeplxToken, lines);
+  }
+
+  return buildOpenAiTranslatedBlocks(settings, apiKey, lines);
+}
+
 async function buildBaiduTranslatedBlocks(
   settings: AppSettings,
   secretKey: string,
   lines: OcrLine[]
 ): Promise<TranslationBlock[]> {
+  const groups = groupOcrLinesBySentence(lines);
   const translated = await translateTextsWithBaidu(
     settings,
     secretKey,
-    lines.map((line) => line.text)
+    groups.map((group) => group.text)
   );
 
-  return lines.map((line, index) => ({
-    sourceText: line.text,
-    translatedText: translated[index] ?? line.text,
-    bbox: line.bbox,
+  return groups.map((group, index) => ({
+    sourceText: group.text,
+    translatedText: translated[index] ?? group.text,
+    bbox: group.bbox,
     confidence: 1
   }));
 }
 
-// Groups OCR lines into sentences/paragraphs via the model, then renders each merged group
-// as one block positioned over the union of its source lines' bounding boxes.
-async function buildTranslatedBlocks(
+async function buildDeeplxTranslatedBlocks(
+  settings: AppSettings,
+  token: string,
+  lines: OcrLine[]
+): Promise<TranslationBlock[]> {
+  const groups = groupOcrLinesBySentence(lines);
+  const translated = await translateTextsWithDeeplx(
+    settings,
+    token,
+    groups.map((group) => group.text)
+  );
+
+  return groups.map((group, index) => ({
+    sourceText: group.text,
+    translatedText: translated[index] ?? group.text,
+    bbox: group.bbox,
+    confidence: 1
+  }));
+}
+
+async function buildOpenAiTranslatedBlocks(
   settings: AppSettings,
   apiKey: string,
   lines: OcrLine[]
 ): Promise<TranslationBlock[]> {
-  if (lines.length <= FAST_TRANSLATE_LINE_LIMIT) {
-    const translated = await translateTexts(
-      settings,
-      apiKey,
-      lines.map((line) => line.text)
-    );
-
-    return lines.map((line, index) => ({
-      sourceText: line.text,
-      translatedText: translated[index] ?? line.text,
-      bbox: line.bbox,
-      confidence: 1
-    }));
-  }
-
-  const segments = await translateGroupedLines(
+  const groups = groupOcrLinesBySentence(lines);
+  const translated = await translateTexts(
     settings,
     apiKey,
-    lines.map((line) => line.text)
+    groups.map((group) => group.text)
   );
 
-  const blocks: TranslationBlock[] = [];
-  const covered = new Set<number>();
-
-  for (const segment of segments) {
-    const segmentLines = segment.lineIndices
-      .filter((index) => !covered.has(index))
-      .map((index) => {
-        covered.add(index);
-        return lines[index];
-      });
-
-    if (segmentLines.length === 0) {
-      continue;
-    }
-
-    blocks.push({
-      sourceText: segmentLines.map((line) => line.text).join(" "),
-      translatedText: segment.translatedText,
-      bbox: unionBbox(segmentLines.map((line) => line.bbox)),
-      confidence: 1
-    });
-  }
-
-  // Any line the model failed to group must not be dropped. If grouping produced nothing at
-  // all, translate the leftovers per-line as a real fallback; otherwise keep them in place.
-  const leftovers = lines.filter((_, index) => !covered.has(index));
-  if (leftovers.length > 0) {
-    const groupingFailed = blocks.length === 0;
-    const translated = groupingFailed
-      ? await translateTexts(settings, apiKey, leftovers.map((line) => line.text))
-      : [];
-
-    leftovers.forEach((line, index) => {
-      blocks.push({
-        sourceText: line.text,
-        translatedText: groupingFailed ? translated[index] ?? line.text : line.text,
-        bbox: line.bbox,
-        confidence: groupingFailed ? 1 : 0.5
-      });
-    });
-  }
-
-  return blocks;
-}
-
-function unionBbox(boxes: CaptureSelection[]): CaptureSelection {
-  const left = Math.min(...boxes.map((box) => box.x));
-  const top = Math.min(...boxes.map((box) => box.y));
-  const right = Math.max(...boxes.map((box) => box.x + box.width));
-  const bottom = Math.max(...boxes.map((box) => box.y + box.height));
-
-  return { x: left, y: top, width: right - left, height: bottom - top };
+  return groups.map((group, index) => ({
+    sourceText: group.text,
+    translatedText: translated[index] ?? group.text,
+    bbox: group.bbox,
+    confidence: 1
+  }));
 }
 
 function createFallbackTranslation(capture: CaptureResult, targetLanguage: string): TranslationResult {
@@ -464,13 +447,14 @@ function registerIpc(): void {
     settings: await getSettings(),
     hasApiKey: await hasApiKey(),
     hasBaiduSecretKey: await hasBaiduSecretKey(),
+    hasDeeplxToken: await hasDeeplxToken(),
     storagePath: getSettingsStoragePath()
   }));
 
   ipcMain.handle(
     "settings:save",
-    async (_event, settings: AppSettings, apiKey?: string, baiduSecretKey?: string) => {
-      const saved = await saveSettings(settings, apiKey, baiduSecretKey);
+    async (_event, settings: AppSettings, apiKey?: string, baiduSecretKey?: string, deeplxToken?: string) => {
+      const saved = await saveSettings(settings, apiKey, baiduSecretKey, deeplxToken);
       await registerShortcut();
       return saved;
     }
@@ -478,13 +462,21 @@ function registerIpc(): void {
 
   ipcMain.handle(
     "settings:testConnection",
-    async (_event, settings: AppSettings, apiKey?: string, baiduSecretKey?: string) => {
+    async (_event, settings: AppSettings, apiKey?: string, baiduSecretKey?: string, deeplxToken?: string) => {
       try {
         if (settings.translationProvider === "baidu") {
           await testBaiduTranslateEndpoint(settings, baiduSecretKey ?? (await getBaiduSecretKey()));
           return {
             ok: true,
             message: settings.interfaceLanguage === "zh-CN" ? "百度翻译连接成功。" : "Baidu Translate connection succeeded."
+          };
+        }
+
+        if (settings.translationProvider === "deeplx") {
+          await testDeeplxEndpoint(settings, deeplxToken ?? (await getDeeplxToken()));
+          return {
+            ok: true,
+            message: settings.interfaceLanguage === "zh-CN" ? "DeepLX 连接成功。" : "DeepLX connection succeeded."
           };
         }
 

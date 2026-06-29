@@ -3,10 +3,10 @@ import type { AppSettings, CaptureResult, ResultState, ScreenTranslateApi } from
 
 const api: ScreenTranslateApi = {
   getSettings: () => ipcRenderer.invoke("settings:get"),
-  saveSettings: (settings: AppSettings, apiKey?: string, baiduSecretKey?: string) =>
-    ipcRenderer.invoke("settings:save", settings, apiKey, baiduSecretKey),
-  testConnection: (settings: AppSettings, apiKey?: string, baiduSecretKey?: string) =>
-    ipcRenderer.invoke("settings:testConnection", settings, apiKey, baiduSecretKey),
+  saveSettings: (settings: AppSettings, apiKey?: string, baiduSecretKey?: string, deeplxToken?: string) =>
+    ipcRenderer.invoke("settings:save", settings, apiKey, baiduSecretKey, deeplxToken),
+  testConnection: (settings: AppSettings, apiKey?: string, baiduSecretKey?: string, deeplxToken?: string) =>
+    ipcRenderer.invoke("settings:testConnection", settings, apiKey, baiduSecretKey, deeplxToken),
   getCaptureWindowBounds: () => ipcRenderer.invoke("capture:getWindowBounds"),
   completeCapture: (capture: CaptureResult) => ipcRenderer.invoke("capture:complete", capture),
   cancelCapture: () => ipcRenderer.invoke("capture:cancel"),

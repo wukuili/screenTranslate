@@ -3,9 +3,12 @@ import type { AppSettings, TranslationResult } from "../shared/types";
 export const defaultSettings: AppSettings = {
   interfaceLanguage: "zh-CN",
   translationProvider: "openai",
+  ocrProvider: "windows",
+  paddleOcrApiUrl: "http://127.0.0.1:8866",
   baseUrl: "https://api.openai.com/v1",
   model: "gpt-4.1-mini",
   baiduAppId: "",
+  deeplxApiUrl: "http://127.0.0.1:1188/translate",
   targetLanguage: "中文",
   shortcut: "Ctrl+Alt+T",
   requestTimeoutMs: 60000,

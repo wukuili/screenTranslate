@@ -8,6 +8,7 @@ interface StoredSettings {
   settings: AppSettings;
   encryptedApiKey?: string;
   encryptedBaiduSecretKey?: string;
+  encryptedDeeplxToken?: string;
 }
 
 const configPath = () => join(app.getPath("userData"), "settings.json");
@@ -23,7 +24,8 @@ async function readStoredSettings(): Promise<StoredSettings> {
     return {
       settings: { ...defaultSettings, ...parsed.settings },
       encryptedApiKey: parsed.encryptedApiKey,
-      encryptedBaiduSecretKey: parsed.encryptedBaiduSecretKey
+      encryptedBaiduSecretKey: parsed.encryptedBaiduSecretKey,
+      encryptedDeeplxToken: parsed.encryptedDeeplxToken
     };
   } catch {
     return { settings: defaultSettings };
@@ -45,6 +47,11 @@ export async function hasBaiduSecretKey(): Promise<boolean> {
   return Boolean(stored.encryptedBaiduSecretKey);
 }
 
+export async function hasDeeplxToken(): Promise<boolean> {
+  const stored = await readStoredSettings();
+  return Boolean(stored.encryptedDeeplxToken);
+}
+
 export async function getApiKey(): Promise<string> {
   const stored = await readStoredSettings();
 
@@ -55,6 +62,12 @@ export async function getBaiduSecretKey(): Promise<string> {
   const stored = await readStoredSettings();
 
   return decryptSecret(stored.encryptedBaiduSecretKey);
+}
+
+export async function getDeeplxToken(): Promise<string> {
+  const stored = await readStoredSettings();
+
+  return decryptSecret(stored.encryptedDeeplxToken);
 }
 
 function decryptSecret(encryptedSecret?: string): string {
@@ -79,13 +92,15 @@ function encryptSecret(secret: string): string {
 export async function saveSettings(
   settings: AppSettings,
   apiKey?: string,
-  baiduSecretKey?: string
+  baiduSecretKey?: string,
+  deeplxToken?: string
 ): Promise<AppSettings> {
   const previous = await readStoredSettings();
   const next: StoredSettings = {
     settings: { ...defaultSettings, ...settings },
     encryptedApiKey: previous.encryptedApiKey,
-    encryptedBaiduSecretKey: previous.encryptedBaiduSecretKey
+    encryptedBaiduSecretKey: previous.encryptedBaiduSecretKey,
+    encryptedDeeplxToken: previous.encryptedDeeplxToken
   };
 
   if (apiKey !== undefined) {
@@ -94,6 +109,10 @@ export async function saveSettings(
 
   if (baiduSecretKey !== undefined) {
     next.encryptedBaiduSecretKey = encryptSecret(baiduSecretKey);
+  }
+
+  if (deeplxToken !== undefined) {
+    next.encryptedDeeplxToken = encryptSecret(deeplxToken);
   }
 
   await mkdir(dirname(configPath()), { recursive: true });

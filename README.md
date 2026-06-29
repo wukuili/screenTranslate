@@ -12,11 +12,21 @@ Screen Translate is a tray-based desktop tool for translating text directly from
 
 ![Screenshot translation result overlay](docs/screenshots/result-preview.svg)
 
+### Translation Example / 翻译效果
+
+Original screenshot / 原始截图：
+
+![Original game text before translation](docs/screenshots/origin.png)
+
+Translated result / 翻译结果：
+
+![Translated game text result overlay](docs/screenshots/result.png)
+
 ## Features / 功能
 
 - Global screenshot shortcut, default `Ctrl+Alt+T`.
 - Multi-monitor region selection overlay.
-- Local Windows OCR before translation.
+- Local OCR before translation, with Windows OCR and PaddleOCR options.
 - Translation engine switch: OpenAI-compatible large model or Baidu Translate.
 - Configurable large-model `Base URL`, `Model`, and API key.
 - Configurable Baidu Translate `App ID` and `Secret Key`.
@@ -27,7 +37,7 @@ Screen Translate is a tray-based desktop tool for translating text directly from
 
 - 全局截图快捷键，默认 `Ctrl+Alt+T`。
 - 支持多屏幕区域选择。
-- 翻译前使用本地 Windows OCR 识别截图文字。
+- 翻译前使用本地 OCR 识别截图文字，可选择 Windows OCR 或 PaddleOCR。
 - 翻译引擎可切换：OpenAI 兼容大模型或百度翻译。
 - 可配置大模型 `Base URL`、`Model` 和 API Key。
 - 可配置百度翻译 `App ID` 和 `Secret Key`。
@@ -40,13 +50,13 @@ Screen Translate is a tray-based desktop tool for translating text directly from
 
 1. Press the shortcut or choose screenshot translation from the tray menu.
 2. Drag to select a screen region.
-3. The app captures the selected region and runs local Windows OCR.
+3. The app captures the selected region and runs the selected local OCR engine.
 4. Recognized text is sent to the selected translation service.
 5. Translation results are rendered over the screenshot or shown as plain text.
 
 1. 按下快捷键，或从托盘菜单启动截图翻译。
 2. 拖拽选择屏幕区域。
-3. 应用截取选区，并调用本地 Windows OCR。
+3. 应用截取选区，并调用所选本地 OCR 引擎。
 4. 识别出的文本会发送到所选翻译服务。
 5. 翻译结果会覆盖显示在截图上，也可以切换到纯文本查看。
 
@@ -69,6 +79,7 @@ npm run build
 
 Open settings from the tray window and choose a translation engine:
 
+- `OCR engine`: choose Windows default OCR or PaddleOCR. PaddleOCR uses the local API URL, default `http://127.0.0.1:8866`.
 - `Large model`: configure an OpenAI-compatible `Base URL`, `API Key`, and `Model`.
 - `Baidu Translate`: configure Baidu Translate `App ID` and `Secret Key`.
 - `Target language`: controls the output translation language.
@@ -76,6 +87,7 @@ Open settings from the tray window and choose a translation engine:
 
 在设置窗口中选择翻译引擎：
 
+- `OCR 引擎`：选择 Windows 默认 OCR 或 PaddleOCR。PaddleOCR 使用本地 API 地址，默认 `http://127.0.0.1:8866`。
 - `大模型`：配置 OpenAI 兼容的 `Base URL`、`API Key` 和 `Model`。
 - `百度翻译`：配置百度翻译 `App ID` 和 `Secret Key`。
 - `目标语言`：控制截图文字翻译成什么语言。
@@ -83,9 +95,9 @@ Open settings from the tray window and choose a translation engine:
 
 ## Privacy / 隐私
 
-Screenshots are processed with local Windows OCR. Recognized text is sent to the selected translation service. Screenshots and translation history are not saved unless history is enabled in settings.
+Screenshots are processed with the selected local OCR engine. Recognized text is sent to the selected translation service. Screenshots and translation history are not saved unless history is enabled in settings.
 
-截图会先通过本地 Windows OCR 处理。识别出的文字会发送到所选翻译服务。除非在设置中启用历史记录，否则不会保存截图和翻译历史。
+截图会先通过所选本地 OCR 引擎处理。识别出的文字会发送到所选翻译服务。除非在设置中启用历史记录，否则不会保存截图和翻译历史。
 
 ## Notes / 说明
 

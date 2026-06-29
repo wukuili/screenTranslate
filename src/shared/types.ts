@@ -1,13 +1,17 @@
 export type ViewMode = "settings" | "capture" | "result";
-export type TranslationProvider = "openai" | "baidu";
+export type TranslationProvider = "openai" | "baidu" | "deeplx";
+export type OcrProvider = "windows" | "paddle";
 export type InterfaceLanguage = "zh-CN" | "en";
 
 export interface AppSettings {
   interfaceLanguage: InterfaceLanguage;
   translationProvider: TranslationProvider;
+  ocrProvider: OcrProvider;
+  paddleOcrApiUrl: string;
   baseUrl: string;
   model: string;
   baiduAppId: string;
+  deeplxApiUrl: string;
   targetLanguage: string;
   shortcut: string;
   requestTimeoutMs: number;
@@ -60,6 +64,7 @@ export interface SettingsSnapshot {
   settings: AppSettings;
   hasApiKey: boolean;
   hasBaiduSecretKey: boolean;
+  hasDeeplxToken: boolean;
   storagePath: string;
 }
 
@@ -79,8 +84,18 @@ export type ResultState =
 
 export interface ScreenTranslateApi {
   getSettings: () => Promise<SettingsSnapshot>;
-  saveSettings: (settings: AppSettings, apiKey?: string, baiduSecretKey?: string) => Promise<AppSettings>;
-  testConnection: (settings: AppSettings, apiKey?: string, baiduSecretKey?: string) => Promise<ApiTestResult>;
+  saveSettings: (
+    settings: AppSettings,
+    apiKey?: string,
+    baiduSecretKey?: string,
+    deeplxToken?: string
+  ) => Promise<AppSettings>;
+  testConnection: (
+    settings: AppSettings,
+    apiKey?: string,
+    baiduSecretKey?: string,
+    deeplxToken?: string
+  ) => Promise<ApiTestResult>;
   getCaptureWindowBounds: () => Promise<CaptureSelection>;
   completeCapture: (capture: CaptureResult) => Promise<void>;
   cancelCapture: () => Promise<void>;

@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { AppSettings } from "../shared/types";
+import { chunkArray } from "./concurrency";
 
 interface BaiduTranslateResponse {
   from?: string;
@@ -13,6 +14,10 @@ interface BaiduTranslateResponse {
 }
 
 const BAIDU_TRANSLATE_ENDPOINT = "https://fanyi-api.baidu.com/api/trans/vip/translate";
+const BAIDU_TRANSLATION_BATCH_SIZE = 20;
+const BAIDU_REQUEST_INTERVAL_MS = 1000;
+const BAIDU_ACCESS_LIMIT_ERROR = "54003";
+const BAIDU_ACCESS_LIMIT_RETRY_DELAYS_MS = [1500, 3000, 6000];
 
 export async function translateTextsWithBaidu(
   settings: AppSettings,
@@ -23,19 +28,57 @@ export async function translateTextsWithBaidu(
     return [];
   }
 
-  const response = await requestBaiduTranslate(settings, secretKey, texts.join("\n"));
-  const results = response.trans_result ?? [];
-  const singleJoinedResult =
-    results.length === 1 && texts.length > 1 ? results[0].dst?.split(/\r?\n/) ?? [] : [];
+  const indexedTexts = texts.map((text, index) => ({ text, index }));
+  const batches = chunkArray(indexedTexts, BAIDU_TRANSLATION_BATCH_SIZE);
+  const translated = new Array<string>(texts.length);
+
+  for (const [batchIndex, batch] of batches.entries()) {
+    if (batchIndex > 0) {
+      await sleep(BAIDU_REQUEST_INTERVAL_MS);
+    }
+
+    const response = await requestBaiduTranslateWithRetry(
+      settings,
+      secretKey,
+      batch.map((item) => item.text).join("\n")
+    );
+    const results = response.trans_result ?? [];
+    const singleJoinedResult =
+      results.length === 1 && batch.length > 1 ? results[0].dst?.split(/\r?\n/) ?? [] : [];
+
+    batch.forEach((item, batchIndex) => {
+      const result = (results[batchIndex]?.dst ?? singleJoinedResult[batchIndex])?.trim();
+      translated[item.index] = result || item.text;
+    });
+  }
 
   return texts.map((original, index) => {
-    const translated = (results[index]?.dst ?? singleJoinedResult[index])?.trim();
-    return translated || original;
+    return translated[index] || original;
   });
 }
 
 export async function testBaiduTranslateEndpoint(settings: AppSettings, secretKey: string): Promise<void> {
-  await requestBaiduTranslate(settings, secretKey, "hello");
+  await requestBaiduTranslateWithRetry(settings, secretKey, "hello");
+}
+
+async function requestBaiduTranslateWithRetry(
+  settings: AppSettings,
+  secretKey: string,
+  text: string
+): Promise<BaiduTranslateResponse> {
+  for (let attempt = 0; attempt <= BAIDU_ACCESS_LIMIT_RETRY_DELAYS_MS.length; attempt += 1) {
+    try {
+      return await requestBaiduTranslate(settings, secretKey, text);
+    } catch (error) {
+      if (!isBaiduAccessLimitError(error) || attempt >= BAIDU_ACCESS_LIMIT_RETRY_DELAYS_MS.length) {
+        throw error;
+      }
+
+      await sleep(BAIDU_ACCESS_LIMIT_RETRY_DELAYS_MS[attempt]);
+    }
+  }
+
+  throw new Error("Baidu translate failed after retrying access limit errors.");
 }
 
 async function requestBaiduTranslate(
@@ -85,7 +128,7 @@ async function requestBaiduTranslate(
 
     const data = (await response.json()) as BaiduTranslateResponse;
     if (data.error_code) {
-      throw new Error(`Baidu translate failed: ${data.error_code} ${data.error_msg ?? ""}`.trim());
+      throw new BaiduTranslateError(data.error_code, data.error_msg);
     }
 
     return data;
@@ -99,6 +142,24 @@ async function requestBaiduTranslate(
   } finally {
     clearTimeout(timeout);
   }
+}
+
+class BaiduTranslateError extends Error {
+  constructor(
+    readonly code: string,
+    message?: string
+  ) {
+    super(`Baidu translate failed: ${code} ${message ?? ""}`.trim());
+    this.name = "BaiduTranslateError";
+  }
+}
+
+function isBaiduAccessLimitError(error: unknown): boolean {
+  return error instanceof BaiduTranslateError && error.code === BAIDU_ACCESS_LIMIT_ERROR;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function sign(appId: string, text: string, salt: string, secretKey: string): string {

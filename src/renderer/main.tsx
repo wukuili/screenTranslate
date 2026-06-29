@@ -8,9 +8,9 @@ import type {
   ResultState,
   ScreenTranslateApi,
   SettingsSnapshot,
-  TranslationBlock,
   TranslatingStage
 } from "../shared/types";
+import { getOverlayContentHeight, getTranslationChipPlacements } from "./overlay-layout";
 import "./styles.css";
 
 const screenTranslate = window.screenTranslate ?? createBrowserMockApi();
@@ -31,6 +31,11 @@ const translations = {
     engine: "引擎",
     largeModel: "大模型",
     baiduTranslate: "百度翻译",
+    deeplxTranslate: "DeepLX",
+    ocrEngine: "OCR 引擎",
+    windowsOcr: "Windows 默认 OCR",
+    paddleOcr: "PaddleOCR",
+    paddleOcrApiUrl: "PaddleOCR API 地址",
     largeModelSettings: "大模型",
     baseUrl: "Base URL",
     apiKey: "API Key",
@@ -45,6 +50,13 @@ const translations = {
     baiduSecretSavedPlaceholder: "已保存。留空则保留当前密钥",
     baiduSecretPlaceholder: "输入 Secret Key",
     testBaidu: "测试百度",
+    deeplxSettings: "DeepLX",
+    deeplxApiUrl: "DeepLX API 地址",
+    deeplxApiUrlPlaceholder: "http://127.0.0.1:1188/translate",
+    deeplxToken: "DeepLX Token",
+    deeplxTokenSavedPlaceholder: "已保存。留空则保留当前 Token",
+    deeplxTokenPlaceholder: "可选 Token",
+    testDeeplx: "测试 DeepLX",
     translation: "翻译",
     interfaceLanguage: "界面语言",
     chinese: "中文",
@@ -54,13 +66,14 @@ const translations = {
     timeout: "超时时间",
     autoCopy: "自动复制翻译文本",
     privacy: "隐私",
-    privacyDescription: "截图会使用本地 Windows OCR 处理。识别出的文字会发送给所选翻译服务。历史记录默认关闭，启用后仅保存在本机。",
+    privacyDescription: "截图会使用所选本地 OCR 引擎处理。识别出的文字会发送给所选翻译服务。历史记录默认关闭，启用后仅保存在本机。",
     saveHistory: "保存历史记录",
     maxHistoryItems: "最大历史条数",
     clearHistory: "清除历史",
     status: "状态",
     apiKeySaved: "API Key 已安全保存并隐藏。",
     baiduSecretSaved: "百度 Secret Key 已安全保存并隐藏。",
+    deeplxTokenSaved: "DeepLX Token 已安全保存并隐藏。",
     settingsFile: "设置文件",
     defaultShortcut: "默认快捷键：Ctrl + Alt + T。若快捷键截图已暂停，可使用托盘菜单。",
     captureTip: "拖拽选择区域。按 Esc 取消。",
@@ -95,6 +108,11 @@ const translations = {
     engine: "Engine",
     largeModel: "Large model",
     baiduTranslate: "Baidu Translate",
+    deeplxTranslate: "DeepLX",
+    ocrEngine: "OCR engine",
+    windowsOcr: "Windows default OCR",
+    paddleOcr: "PaddleOCR",
+    paddleOcrApiUrl: "PaddleOCR API URL",
     largeModelSettings: "Large Model",
     baseUrl: "Base URL",
     apiKey: "API Key",
@@ -109,6 +127,13 @@ const translations = {
     baiduSecretSavedPlaceholder: "Saved. Leave blank to keep current key",
     baiduSecretPlaceholder: "Enter Secret Key",
     testBaidu: "Test Baidu",
+    deeplxSettings: "DeepLX",
+    deeplxApiUrl: "DeepLX API URL",
+    deeplxApiUrlPlaceholder: "http://127.0.0.1:1188/translate",
+    deeplxToken: "DeepLX Token",
+    deeplxTokenSavedPlaceholder: "Saved. Leave blank to keep current token",
+    deeplxTokenPlaceholder: "Optional token",
+    testDeeplx: "Test DeepLX",
     translation: "Translation",
     interfaceLanguage: "Interface language",
     chinese: "中文",
@@ -119,13 +144,14 @@ const translations = {
     autoCopy: "Auto-copy translated text",
     privacy: "Privacy",
     privacyDescription:
-      "Screenshots are processed with local Windows OCR. Recognized text is sent to the selected translation service. History is off by default and stored locally only when enabled.",
+      "Screenshots are processed with the selected local OCR engine. Recognized text is sent to the selected translation service. History is off by default and stored locally only when enabled.",
     saveHistory: "Save history",
     maxHistoryItems: "Maximum history items",
     clearHistory: "Clear history",
     status: "Status",
     apiKeySaved: "API key is saved securely and hidden.",
     baiduSecretSaved: "Baidu Secret Key is saved securely and hidden.",
+    deeplxTokenSaved: "DeepLX token is saved securely and hidden.",
     settingsFile: "Settings file",
     defaultShortcut: "Default shortcut: Ctrl + Alt + T. Use the tray menu if shortcut capture is paused.",
     captureTip: "Drag to select a region. Press Esc to cancel.",
@@ -204,6 +230,7 @@ function SettingsView() {
   const [settingsSnapshot, setSettingsSnapshot] = useState<SettingsSnapshot | null>(null);
   const [apiKey, setApiKey] = useState("");
   const [baiduSecretKey, setBaiduSecretKey] = useState("");
+  const [deeplxToken, setDeeplxToken] = useState("");
   const [status, setStatus] = useState("");
   const [isBusy, setIsBusy] = useState(false);
 
@@ -231,7 +258,8 @@ function SettingsView() {
       const saved = await screenTranslate.saveSettings(
         settings,
         apiKey.trim() ? apiKey : undefined,
-        baiduSecretKey.trim() ? baiduSecretKey : undefined
+        baiduSecretKey.trim() ? baiduSecretKey : undefined,
+        deeplxToken.trim() ? deeplxToken : undefined
       );
       setSettings(saved);
       setSettingsSnapshot((current) =>
@@ -240,12 +268,14 @@ function SettingsView() {
               ...current,
               settings: saved,
               hasApiKey: current.hasApiKey || Boolean(apiKey.trim()),
-              hasBaiduSecretKey: current.hasBaiduSecretKey || Boolean(baiduSecretKey.trim())
+              hasBaiduSecretKey: current.hasBaiduSecretKey || Boolean(baiduSecretKey.trim()),
+              hasDeeplxToken: current.hasDeeplxToken || Boolean(deeplxToken.trim())
             }
           : current
       );
       setApiKey("");
       setBaiduSecretKey("");
+      setDeeplxToken("");
       setStatus(t("settingsSaved"));
     } finally {
       setIsBusy(false);
@@ -259,7 +289,8 @@ function SettingsView() {
       const result = await screenTranslate.testConnection(
         { ...settings, translationProvider },
         apiKey || undefined,
-        baiduSecretKey || undefined
+        baiduSecretKey || undefined,
+        deeplxToken || undefined
       );
       setStatus(result.message);
     } finally {
@@ -300,7 +331,24 @@ function SettingsView() {
             >
               <option value="openai">{t("largeModel")}</option>
               <option value="baidu">{t("baiduTranslate")}</option>
+              <option value="deeplx">{t("deeplxTranslate")}</option>
             </select>
+          </Field>
+          <Field label={t("ocrEngine")}>
+            <select
+              value={settings.ocrProvider}
+              onChange={(event) => update("ocrProvider", event.target.value as AppSettings["ocrProvider"])}
+            >
+              <option value="windows">{t("windowsOcr")}</option>
+              <option value="paddle">{t("paddleOcr")}</option>
+            </select>
+          </Field>
+          <Field label={t("paddleOcrApiUrl")}>
+            <input
+              value={settings.paddleOcrApiUrl}
+              onChange={(event) => update("paddleOcrApiUrl", event.target.value)}
+              placeholder="http://127.0.0.1:8866"
+            />
           </Field>
         </div>
 
@@ -350,6 +398,28 @@ function SettingsView() {
           </Field>
           <button className="secondary-button" disabled={isBusy} onClick={() => testConnection("baidu")}>
             {t("testBaidu")}
+          </button>
+        </div>
+
+        <div className="settings-section">
+          <h2>{t("deeplxSettings")}</h2>
+          <Field label={t("deeplxApiUrl")}>
+            <input
+              value={settings.deeplxApiUrl}
+              onChange={(event) => update("deeplxApiUrl", event.target.value)}
+              placeholder={t("deeplxApiUrlPlaceholder")}
+            />
+          </Field>
+          <Field label={t("deeplxToken")}>
+            <input
+              value={deeplxToken}
+              onChange={(event) => setDeeplxToken(event.target.value)}
+              type="password"
+              placeholder={settingsSnapshot?.hasDeeplxToken ? t("deeplxTokenSavedPlaceholder") : t("deeplxTokenPlaceholder")}
+            />
+          </Field>
+          <button className="secondary-button" disabled={isBusy} onClick={() => testConnection("deeplx")}>
+            {t("testDeeplx")}
           </button>
         </div>
 
@@ -423,6 +493,7 @@ function SettingsView() {
           {settingsSnapshot?.hasBaiduSecretKey ? (
             <p className="muted">{t("baiduSecretSaved")}</p>
           ) : null}
+          {settingsSnapshot?.hasDeeplxToken ? <p className="muted">{t("deeplxTokenSaved")}</p> : null}
           {settingsSnapshot ? <p className="muted">{t("settingsFile")}: {settingsSnapshot.storagePath}</p> : null}
           <p className="muted">{t("defaultShortcut")}</p>
         </div>
@@ -650,8 +721,37 @@ function TranslatingView({
 }
 
 function TranslatedOverlay({ payload }: { payload: ResultPayload }) {
+  const [sampledColors, setSampledColors] = useState<SampledBlockColors[]>([]);
+  const placements = getTranslationChipPlacements(
+    payload.translation.blocks,
+    payload.capture.selection.width,
+    payload.capture.selection.height
+  );
+  const contentHeight = getOverlayContentHeight(placements, payload.capture.selection.height);
+
+  useEffect(() => {
+    let cancelled = false;
+    setSampledColors([]);
+
+    sampleBlockColors(payload)
+      .then((colors) => {
+        if (!cancelled) {
+          setSampledColors(colors);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSampledColors([]);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [payload]);
+
   return (
-    <div className="translated-layer">
+    <div className="translated-layer" style={{ width: payload.capture.selection.width, height: contentHeight }}>
       <div
         className="captured-region"
         style={{
@@ -662,27 +762,36 @@ function TranslatedOverlay({ payload }: { payload: ResultPayload }) {
         <img src={payload.capture.imageDataUrl} alt="" />
       </div>
       {payload.translation.blocks.map((block, index) => {
-        const opacity = block.backgroundHint?.opacity ?? 0.9;
-        const background = block.backgroundHint?.color ?? "#ffffff";
-        const fontSize = Math.max(12, Math.min(block.fontHint?.size ?? 16, block.bbox.height * 0.55));
-        const layout = getTranslationChipLayout(block, payload.capture.selection.width, fontSize);
+        const colors = sampledColors[index];
+        const background = colors?.background ?? block.backgroundHint?.color ?? "#ffffff";
+        const textColor = colors?.foreground ?? block.fontHint?.color ?? "#111827";
+        const placement = placements[index];
+        const lineClamp = Number.isFinite(placement.maxLines) ? placement.maxLines : undefined;
 
         return (
           <div
-            className={block.confidence < 0.6 ? "translation-chip low-confidence" : "translation-chip"}
+            className={[
+              "translation-chip",
+              placement.variant === "inline" ? "inline-replacement" : "expanded-replacement",
+              block.confidence < 0.6 ? "low-confidence" : ""
+            ]
+              .filter(Boolean)
+              .join(" ")}
             key={`${block.sourceText}-${index}`}
             style={{
-              left: layout.x,
-              top: block.bbox.y,
-              width: layout.width,
-              minHeight: block.bbox.height,
-              background: rgba(background, opacity),
-              color: block.fontHint?.color ?? "#111827",
-              fontSize,
+              left: placement.x,
+              top: placement.y,
+              width: placement.width,
+              height: placement.variant === "inline" ? placement.minHeight : undefined,
+              minHeight: placement.minHeight,
+              background,
+              color: textColor,
+              fontSize: placement.fontSize,
+              lineHeight: `${placement.lineHeight}px`,
               fontWeight: block.fontHint?.weight === "bold" ? 700 : 500
             }}
           >
-            {block.translatedText}
+            <span style={{ WebkitLineClamp: lineClamp }}>{block.translatedText}</span>
           </div>
         );
       })}
@@ -690,35 +799,177 @@ function TranslatedOverlay({ payload }: { payload: ResultPayload }) {
   );
 }
 
-function getTranslationChipLayout(
-  block: TranslationBlock,
-  captureWidth: number,
-  fontSize: number
-): { x: number; width: number } {
-  const padding = 16;
-  const textWidth = estimateTextWidth(block.translatedText, fontSize) + padding;
-  const desiredWidth = Math.max(block.bbox.width, textWidth);
-  const maxWidth = Math.max(block.bbox.width, Math.min(captureWidth, Math.round(captureWidth * 0.48)));
-  const width = Math.min(desiredWidth, maxWidth);
-  const x = Math.min(block.bbox.x, Math.max(0, captureWidth - width));
-
-  return { x, width };
+interface SampledBlockColors {
+  background: string;
+  foreground: string;
 }
 
-function estimateTextWidth(text: string, fontSize: number): number {
-  let width = 0;
+interface RgbColor {
+  red: number;
+  green: number;
+  blue: number;
+}
 
-  for (const char of text) {
-    if (/\s/.test(char)) {
-      width += fontSize * 0.35;
-    } else if (/[\u3400-\u9fff\uf900-\ufaff]/.test(char)) {
-      width += fontSize;
-    } else {
-      width += fontSize * 0.58;
+async function sampleBlockColors(payload: ResultPayload): Promise<SampledBlockColors[]> {
+  const image = await loadImage(payload.capture.imageDataUrl);
+  const canvas = document.createElement("canvas");
+  canvas.width = image.naturalWidth || payload.capture.selection.width;
+  canvas.height = image.naturalHeight || payload.capture.selection.height;
+
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) {
+    return [];
+  }
+
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+  const scaleX = canvas.width / payload.capture.selection.width;
+  const scaleY = canvas.height / payload.capture.selection.height;
+
+  return payload.translation.blocks.map((block) => {
+    const x = Math.max(0, Math.floor(block.bbox.x * scaleX));
+    const y = Math.max(0, Math.floor(block.bbox.y * scaleY));
+    const width = Math.max(1, Math.min(canvas.width - x, Math.ceil(block.bbox.width * scaleX)));
+    const height = Math.max(1, Math.min(canvas.height - y, Math.ceil(block.bbox.height * scaleY)));
+    const pixels = context.getImageData(x, y, width, height).data;
+    return inferBlockColors(pixels, width, height);
+  });
+}
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Failed to load captured image for color sampling."));
+    image.src = src;
+  });
+}
+
+function inferBlockColors(pixels: Uint8ClampedArray, width: number, height: number): SampledBlockColors {
+  const samples: RgbColor[] = [];
+  const edgeSamples: RgbColor[] = [];
+  const edgeSize = Math.max(1, Math.min(4, Math.floor(Math.min(width, height) * 0.18)));
+
+  for (let row = 0; row < height; row += 1) {
+    for (let column = 0; column < width; column += 1) {
+      const index = (row * width + column) * 4;
+      if (pixels[index + 3] < 24) {
+        continue;
+      }
+
+      const sample = { red: pixels[index], green: pixels[index + 1], blue: pixels[index + 2] };
+      samples.push(sample);
+
+      if (row < edgeSize || column < edgeSize || row >= height - edgeSize || column >= width - edgeSize) {
+        edgeSamples.push(sample);
+      }
     }
   }
 
-  return Math.ceil(width);
+  if (samples.length === 0) {
+    return { background: "#ffffff", foreground: "#111827" };
+  }
+
+  const background = dominantColor(edgeSamples.length > 0 ? edgeSamples : samples);
+  const foregroundCandidates = samples.filter((sample) => isLikelyForegroundColor(sample, background));
+  const foreground =
+    foregroundCandidates.length > 0 ? bestForegroundColor(foregroundCandidates, background) : contrastingTextColor(background);
+
+  return {
+    background: toHex(background),
+    foreground: toHex(foreground)
+  };
+}
+
+function dominantColor(samples: RgbColor[]): RgbColor {
+  const buckets = new Map<string, { color: RgbColor; count: number }>();
+
+  for (const sample of samples) {
+    const color = {
+      red: quantize(sample.red),
+      green: quantize(sample.green),
+      blue: quantize(sample.blue)
+    };
+    const key = `${color.red},${color.green},${color.blue}`;
+    const bucket = buckets.get(key);
+
+    if (bucket) {
+      bucket.count += 1;
+    } else {
+      buckets.set(key, { color, count: 1 });
+    }
+  }
+
+  return [...buckets.values()].sort((a, b) => b.count - a.count)[0]?.color ?? samples[0];
+}
+
+function bestForegroundColor(samples: RgbColor[], background: RgbColor): RgbColor {
+  const buckets = new Map<string, { color: RgbColor; count: number; score: number }>();
+
+  for (const sample of samples) {
+    const color = {
+      red: quantize(sample.red),
+      green: quantize(sample.green),
+      blue: quantize(sample.blue)
+    };
+    const key = `${color.red},${color.green},${color.blue}`;
+    const score = colorDistance(color, background) + luminance(color) * 0.45 + saturation(color) * 40;
+    const bucket = buckets.get(key);
+
+    if (bucket) {
+      bucket.count += 1;
+      bucket.score += score;
+    } else {
+      buckets.set(key, { color, count: 1, score });
+    }
+  }
+
+  return (
+    [...buckets.values()].sort((a, b) => b.score * b.count - a.score * a.count)[0]?.color ??
+    contrastingTextColor(background)
+  );
+}
+
+function isLikelyForegroundColor(sample: RgbColor, background: RgbColor): boolean {
+  const distance = colorDistance(sample, background);
+  const sampleLuminance = luminance(sample);
+  const backgroundLuminance = luminance(background);
+  const brightEnough = sampleLuminance > 82 || sampleLuminance > backgroundLuminance + 46;
+  const colorfulEnough = saturation(sample) > 0.18 && sampleLuminance > 58;
+
+  return distance > 64 && (brightEnough || colorfulEnough);
+}
+
+function contrastingTextColor(background: RgbColor): RgbColor {
+  return luminance(background) < 120
+    ? { red: 224, green: 224, blue: 192 }
+    : { red: 17, green: 24, blue: 39 };
+}
+
+function quantize(value: number): number {
+  return Math.max(0, Math.min(255, Math.round(value / 16) * 16));
+}
+
+function luminance(color: RgbColor): number {
+  return color.red * 0.299 + color.green * 0.587 + color.blue * 0.114;
+}
+
+function saturation(color: RgbColor): number {
+  const max = Math.max(color.red, color.green, color.blue);
+  const min = Math.min(color.red, color.green, color.blue);
+  return max === 0 ? 0 : (max - min) / max;
+}
+
+function colorDistance(a: RgbColor, b: RgbColor): number {
+  return Math.hypot(a.red - b.red, a.green - b.green, a.blue - b.blue);
+}
+
+function toHex(color: RgbColor): string {
+  return `#${toHexPair(color.red)}${toHexPair(color.green)}${toHexPair(color.blue)}`;
+}
+
+function toHexPair(value: number): string {
+  return Math.max(0, Math.min(255, value)).toString(16).padStart(2, "0");
 }
 
 function TextPanel({ payload }: { payload: ResultPayload }) {
@@ -759,30 +1010,16 @@ function createMockScreenshot(width: number, height: number): string {
   return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
 }
 
-function rgba(hex: string, opacity: number): string {
-  const normalized = hex.replace("#", "");
-  const value =
-    normalized.length === 3
-      ? normalized
-          .split("")
-          .map((char) => char + char)
-          .join("")
-      : normalized;
-
-  const red = Number.parseInt(value.slice(0, 2), 16);
-  const green = Number.parseInt(value.slice(2, 4), 16);
-  const blue = Number.parseInt(value.slice(4, 6), 16);
-
-  return `rgba(${red}, ${green}, ${blue}, ${opacity})`;
-}
-
 function createBrowserMockApi(): ScreenTranslateApi {
   const settings: AppSettings = {
     interfaceLanguage: "zh-CN",
     translationProvider: "openai",
+    ocrProvider: "windows",
+    paddleOcrApiUrl: "http://127.0.0.1:8866",
     baseUrl: "https://api.openai.com/v1",
     model: "gpt-4.1-mini",
     baiduAppId: "",
+    deeplxApiUrl: "http://127.0.0.1:1188/translate",
     targetLanguage: "中文",
     shortcut: "Ctrl+Alt+T",
     requestTimeoutMs: 60000,
@@ -828,6 +1065,7 @@ function createBrowserMockApi(): ScreenTranslateApi {
       settings,
       hasApiKey: false,
       hasBaiduSecretKey: false,
+      hasDeeplxToken: false,
       storagePath: "Browser preview mock"
     }),
     saveSettings: async (next) => Object.assign(settings, next),
